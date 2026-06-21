@@ -1104,44 +1104,55 @@ function CurrentTopicPage({ onBack }) {
 }
  
 // ─── CALENDAR PAGE ────────────────────────────────────────────────────────────
+// ─── CALENDAR PAGE ────────────────────────────────────────────────────────────
+// ─── CALENDAR PAGE ────────────────────────────────────────────────────────────
 function CalendarPage({ onBack }) {
   const [marks, setMarks] = useLocalStorage("calendar-marks", {});
   const [notes, setNotes] = useLocalStorage("calendar-notes", {});
+  const [chartVisible, setChartVisible] = useState(false);
+  const [visiblePastCount, setVisiblePastCount] = useState(0);
+  const chartRef = useRef(null);
+  const sentinelRef = useRef(null);
 
-  const toggleDay = (key) => setMarks(p => {
-    const next = { ...p };
-    if (!next[key]) next[key] = "tick";
-    else if (next[key] === "tick") next[key] = "cross";
-    else delete next[key];
-    return next;
-  });
+  const toggleDay = (key) =>
+    setMarks((p) => {
+      const next = { ...p };
+      if (!next[key]) next[key] = "tick";
+      else if (next[key] === "tick") next[key] = "cross";
+      else delete next[key];
+      return next;
+    });
 
-  const setNote = (key, val) => setNotes(p => ({ ...p, [key]: val }));
+  const setNote = (key, val) => setNotes((p) => ({ ...p, [key]: val }));
 
   const color = P.cards[4];
 
-  const months = [];
-  for (let m = 5; m <= 11; m++) months.push({ year: 2026, month: m });
-  for (let m = 0; m <= 3; m++) months.push({ year: 2027, month: m });
+  // ── date helpers ──────────────────────────────────────────────────────────
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
 
   const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
   const getFirstDay = (y, m) => new Date(y, m, 1).getDay();
-  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthNames = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December",
+  ];
+  const monthNamesShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  const getStreak = () => {
-    let streak = 0;
-    const today = new Date();
-    const d = new Date(today);
-    while (true) {
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      if (marks[key] === "tick") { streak++; d.setDate(d.getDate() - 1); }
-      else break;
-    }
-    return streak;
-  };
+  // Full range: Jun 2026 → Apr 2027
+  const allMonths = [];
+  for (let m = 5; m <= 11; m++) allMonths.push({ year: 2026, month: m });
+  for (let m = 0; m <= 3; m++) allMonths.push({ year: 2027, month: m });
 
-  const getTotalStudied = () => Object.values(marks).filter(v => v === "tick").length;
+  // Past months strictly before current, in reverse order (most recent first)
+  const pastMonths = allMonths
+    .filter(({ year, month }) =>
+      year < currentYear || (year === currentYear && month < currentMonth)
+    )
+    .reverse();
 
+  // ── stats helpers ─────────────────────────────────────────────────────────
   const getEff = (y, m) => {
     const days = getDaysInMonth(y, m);
     let ticks = 0;
@@ -1151,6 +1162,251 @@ function CalendarPage({ onBack }) {
     return days > 0 ? Math.round((ticks / days) * 100) : 0;
   };
 
+  const getStreak = () => {
+    let streak = 0;
+    const d = new Date(now);
+    while (true) {
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (marks[key] === "tick") {
+        streak++;
+        d.setDate(d.getDate() - 1);
+      } else break;
+    }
+    return streak;
+  };
+
+  const getBestStreak = () => {
+    let best = 0;
+    let current = 0;
+    for (const { year, month } of allMonths) {
+      const days = getDaysInMonth(year, month);
+      for (let d = 1; d <= days; d++) {
+        if (marks[`${year}-${month}-${d}`] === "tick") {
+          current++;
+          best = Math.max(best, current);
+        } else {
+          current = 0;
+        }
+      }
+    }
+    return best;
+  };
+
+  const getBestMonth = () => {
+    let best = { label: "—", pct: 0 };
+    for (const { year, month } of allMonths) {
+      const pct = getEff(year, month);
+      if (pct > best.pct) {
+        best = { label: `${monthNamesShort[month]} ${year}`, pct };
+      }
+    }
+    return best;
+  };
+
+  // Chart: last 5 past months (chronological order)
+  const chartMonths = [...pastMonths].reverse().slice(-5);
+
+  // ── Intersection observer: chart animation ────────────────────────────────
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) setChartVisible(true); },
+      { threshold: 0.2 }
+    );
+    if (chartRef.current) obs.observe(chartRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  // ── Intersection observer: infinite scroll past months ────────────────────
+  useEffect(() => {
+    if (pastMonths.length === 0) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setVisiblePastCount((prev) => Math.min(prev + 1, pastMonths.length));
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" }
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [pastMonths.length]);
+
+  // ── Month renderer ────────────────────────────────────────────────────────
+  const renderMonth = (year, month, opts = {}) => {
+    const { isPast = false, animDelay = 0 } = opts;
+    const days = getDaysInMonth(year, month);
+    const firstDay = getFirstDay(year, month);
+    const eff = getEff(year, month);
+    const tickCount = Object.keys(marks).filter((k) => {
+      const [ky, km] = k.split("-").map(Number);
+      return ky === year && km === month && marks[k] === "tick";
+    }).length;
+
+    return (
+      <div
+        key={`${year}-${month}`}
+        style={{
+          background: isPast ? "rgba(255,255,255,0.58)" : "rgba(255,255,255,0.72)",
+          borderRadius: 22,
+          padding: "28px 32px",
+          border: isPast ? "1px solid rgba(0,0,0,0.04)" : "1px solid rgba(0,0,0,0.06)",
+          boxShadow: isPast ? "0 1px 8px rgba(0,0,0,0.03)" : "0 2px 16px rgba(0,0,0,0.04)",
+          marginBottom: 28,
+          opacity: 1,
+          animation: isPast ? `fadeSlideIn 0.55s cubic-bezier(0.22,1,0.36,1) ${animDelay}s both` : "none",
+        }}
+      >
+        {/* Month header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: isPast ? 22 : 26,
+              fontWeight: 600,
+              color: isPast ? "#555" : "#1A1A1A",
+              letterSpacing: "-0.5px",
+            }}>
+              {monthNames[month]} {year}
+            </span>
+            {isPast && (
+              <span style={{
+                fontFamily: "'Poppins', sans-serif",
+                fontSize: 10, color: "#BBB",
+                textTransform: "uppercase", letterSpacing: "1px",
+                fontWeight: 500,
+              }}>Past</span>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: "#AAA", fontWeight: 400 }}>
+              {tickCount}/{days} days studied
+            </span>
+            <span style={{
+              fontFamily: "'Poppins', sans-serif", fontSize: 13,
+              color: eff >= 70 ? "#4A7A4A" : eff >= 40 ? color.accent : "#C4714A",
+              fontWeight: 700,
+              background: eff >= 70 ? "rgba(74,122,74,0.10)" : eff >= 40 ? `${color.accent}18` : "rgba(196,113,74,0.10)",
+              padding: "4px 14px", borderRadius: 20,
+              border: `1px solid ${eff >= 70 ? "rgba(74,122,74,0.25)" : eff >= 40 ? `${color.accent}30` : "rgba(196,113,74,0.25)"}`,
+            }}>{eff}% efficient</span>
+          </div>
+        </div>
+
+        {/* Weekday headers */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5, marginBottom: 6 }}>
+          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
+            <div key={d} style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 11, color: "#BBB", textAlign: "center",
+              paddingBottom: 8, fontWeight: 600,
+              letterSpacing: "0.5px", textTransform: "uppercase",
+            }}>{d}</div>
+          ))}
+        </div>
+
+        {/* Day grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5 }}>
+          {Array.from({ length: firstDay }, (_, i) => (
+            <div key={`e${i}`} style={{ minHeight: isPast ? 68 : 82 }} />
+          ))}
+          {Array.from({ length: days }, (_, i) => {
+            const day = i + 1;
+            const key = `${year}-${month}-${day}`;
+            const mark = marks[key];
+            const noteVal = notes[key] || "";
+            const isToday =
+              now.getFullYear() === year &&
+              now.getMonth() === month &&
+              now.getDate() === day;
+            const isFuture = new Date(year, month, day) > now;
+
+            let cellBg = isPast ? "#EEEAE2" : "#EDE8E0";
+            let cellBorder = "1px solid rgba(0,0,0,0.08)";
+            if (mark === "tick") {
+              cellBg = "rgba(74,122,74,0.13)";
+              cellBorder = "1.5px solid rgba(74,122,74,0.40)";
+            } else if (mark === "cross") {
+              cellBg = "rgba(196,113,74,0.13)";
+              cellBorder = "1.5px solid rgba(196,113,74,0.40)";
+            } else if (isToday) {
+              cellBg = "#E8E2D8";
+              cellBorder = "2px solid rgba(0,0,0,0.28)";
+            }
+
+            const numColor = mark === "tick" ? "#4A7A4A" : mark === "cross" ? "#C4714A" : isToday ? "#1A1A1A" : "#666";
+
+            return (
+              <div
+                key={day}
+                style={{
+                  minHeight: isPast ? 68 : 82,
+                  borderRadius: 10,
+                  background: cellBg,
+                  border: cellBorder,
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: isPast ? "7px 9px" : "8px 10px",
+                  opacity: isFuture ? 0.28 : 1,
+                  transition: "background 0.15s, border 0.15s",
+                  cursor: !isFuture ? "pointer" : "default",
+                }}
+                onClick={() => !isFuture && toggleDay(key)}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexShrink: 0 }}>
+                  <span style={{
+                    fontFamily: "'Poppins', sans-serif",
+                    fontSize: 13,
+                    fontWeight: mark ? 700 : isToday ? 600 : 400,
+                    color: numColor,
+                    lineHeight: 1,
+                    userSelect: "none",
+                  }}>{day}</span>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    width: 20, height: 20, borderRadius: "50%",
+                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    userSelect: "none",
+                    transition: "all 0.18s ease",
+                    background: mark === "tick" ? "#4A7A4A" : mark === "cross" ? "#C4714A" : "transparent",
+                    border: mark === "tick" ? "2px solid #4A7A4A" : mark === "cross" ? "2px solid #C4714A" : "1.5px solid #CCC",
+                    color: mark === "tick" ? "#FFF" : mark === "cross" ? "#FFF" : "#CCC",
+                  }}>
+                    {mark === "tick" ? "✓" : mark === "cross" ? "✗" : "·"}
+                  </span>
+                </div>
+                {!isFuture && (
+                  <textarea
+                    className="cal-day-note"
+                    rows={isPast ? 1 : 2}
+                    maxLength={60}
+                    placeholder="note…"
+                    value={noteVal}
+                    onChange={(e) => setNote(key, e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // ── computed stats ────────────────────────────────────────────────────────
+  const streak = getStreak();
+  const bestStreak = getBestStreak();
+  const bestMonth = getBestMonth();
+  const chartData = chartMonths.map(({ year, month }) => ({
+    label: monthNamesShort[month],
+    pct: getEff(year, month),
+  }));
+  const maxPct = Math.max(...chartData.map((d) => d.pct), 1);
+
+  // ── render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ width: "100%", boxSizing: "border-box" }}>
       <style>{`
@@ -1178,235 +1434,137 @@ function CalendarPage({ onBack }) {
           padding: 0;
           margin-top: 2px;
         }
-        .cal-day-note::placeholder {
-          color: #ccc;
-          font-style: italic;
+        .cal-day-note::placeholder { color: #ccc; font-style: italic; }
+        .cal-day-note:focus { color: #444; }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(24px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-        .cal-day-note:focus {
-          color: #444;
-        }
-        .cal-day-btn {
-          width: 100%;
-          height: 100%;
-          background: none;
-          border: none;
-          padding: 9px 10px;
-          cursor: pointer;
-          text-align: left;
-          display: flex;
-          flex-direction: column;
-          border-radius: 10px;
-        }
-        .cal-day-btn:hover .cal-day-header {
-          opacity: 0.85;
+        @keyframes barGrow {
+          from { height: 0; opacity: 0; }
+          to   { opacity: 1; }
         }
       `}</style>
 
       <div className="cal-fullwidth">
         <PageHeader title="Study Calendar" accent={color.accent} onBack={onBack} />
 
-        {/* Stats strip */}
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "#AAA", marginBottom: 32, textAlign: "center", fontWeight: 400 }}>
+          Click a day to cycle: unmarked → ✓ studied → ✗ missed → clear · Click the note area to write
+        </p>
+
+        {/* ── Current month ── */}
         <Reveal>
-          <div style={{
-            background: color.bg,
-            borderRadius: 24,
-            padding: "28px 36px",
-            borderLeft: `4px solid ${color.accent}`,
-            marginBottom: 28,
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 18,
-          }}>
+          {renderMonth(currentYear, currentMonth)}
+        </Reveal>
+
+        {/* ── Stats section ── */}
+        <Reveal>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 28 }}>
             {[
-              { label: "Current Streak", value: `${getStreak()} days` },
-              { label: "Total Studied",  value: `${getTotalStudied()} days` },
-              { label: "Period",         value: "Jun 26 – Apr 27" },
-            ].map(s => (
-              <div key={s.label} style={{ background: "rgba(255,255,255,0.65)", borderRadius: 16, padding: "20px 24px" }}>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8, fontWeight: 500 }}>{s.label}</div>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 28, fontWeight: 700, color: "#1A1A1A", letterSpacing: "-0.5px" }}>{s.value}</div>
+              { label: "Current Streak", value: `${streak} day${streak !== 1 ? "s" : ""}`, icon: "🔥", highlight: streak >= 7 },
+              { label: "Best Streak",    value: `${bestStreak} day${bestStreak !== 1 ? "s" : ""}`, icon: "🏆", highlight: false },
+              { label: "Best Month",     value: bestMonth.pct > 0 ? `${bestMonth.label} • ${bestMonth.pct}%` : "No data yet", icon: "⭐", highlight: false },
+            ].map((s) => (
+              <div key={s.label} style={{
+                background: s.highlight ? `${color.accent}15` : "rgba(255,255,255,0.72)",
+                borderRadius: 18,
+                padding: "24px 26px",
+                border: s.highlight ? `1.5px solid ${color.accent}40` : "1px solid rgba(0,0,0,0.06)",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 18 }}>{s.icon}</span>
+                  <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 500 }}>{s.label}</span>
+                </div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 22, fontWeight: 700, color: s.highlight ? color.accent : "#1A1A1A", letterSpacing: "-0.5px", lineHeight: 1.2 }}>
+                  {s.value}
+                </div>
               </div>
             ))}
           </div>
-          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "#AAA", marginBottom: 32, textAlign: "center", fontWeight: 400 }}>
-            Click a day to cycle: unmarked → ✓ studied → ✗ missed → clear · Click the note area to write
-          </p>
         </Reveal>
 
-        {/* One month per row */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-          {months.map(({ year, month }, mi) => {
-            const days = getDaysInMonth(year, month);
-            const firstDay = getFirstDay(year, month);
-            const eff = getEff(year, month);
+        {/* ── Performance Analysis bar chart ── */}
+        {chartData.length > 0 && (
+          <Reveal>
+            <div
+              ref={chartRef}
+              style={{
+                background: "rgba(255,255,255,0.72)",
+                borderRadius: 22,
+                padding: "32px 36px 28px",
+                border: "1px solid rgba(0,0,0,0.06)",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.04)",
+                marginBottom: 40,
+              }}
+            >
+              <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 600, color: "#1A1A1A", marginBottom: 4, letterSpacing: "-0.4px" }}>
+                Performance Analysis
+              </h2>
+              <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "#AAA", marginBottom: 36, fontWeight: 400 }}>
+                Efficiency across the last {chartData.length} completed month{chartData.length !== 1 ? "s" : ""}
+              </p>
 
-            return (
-              <Reveal key={`${year}-${month}`} delay={mi * 0.04}>
-                <div style={{
-                  background: "rgba(255,255,255,0.72)",
-                  borderRadius: 22,
-                  padding: "28px 32px",
-                  border: "1px solid rgba(0,0,0,0.06)",
-                  boxShadow: "0 2px 16px rgba(0,0,0,0.04)",
-                }}>
-                  {/* Month header */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                    <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 26, fontWeight: 600, color: "#1A1A1A", letterSpacing: "-0.5px" }}>
-                      {monthNames[month]} {year}
-                    </span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                      <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: "#AAA", fontWeight: 400 }}>
-                        {Object.keys(marks).filter(k => {
-                          const parts = k.split("-");
-                          const ky = Number(parts[0]);
-                          const km = Number(parts[1]);
-                          return ky === year && km === month && marks[k] === "tick";
-                        }).length}/{days} days studied
-                      </span>
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 24, height: 180 }}>
+                {chartData.map((d, i) => {
+                  const barH = chartVisible ? Math.max(Math.round((d.pct / maxPct) * 140), d.pct > 0 ? 6 : 0) : 0;
+                  const alpha = 0.40 + (d.pct / 100) * 0.60;
+                  return (
+                    <div key={d.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flex: 1, maxWidth: 100 }}>
                       <span style={{
-                        fontFamily: "'Poppins', sans-serif", fontSize: 13,
-                        color: color.accent, fontWeight: 700,
-                        background: `${color.accent}18`,
-                        padding: "4px 14px", borderRadius: 20,
-                        border: `1px solid ${color.accent}30`,
-                      }}>{eff}% efficient</span>
+                        fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 700,
+                        color: color.accent,
+                        opacity: chartVisible ? 1 : 0,
+                        transition: `opacity 0.4s ease ${i * 0.1 + 0.3}s`,
+                        minHeight: 20,
+                      }}>{d.pct}%</span>
+
+                      <div style={{ width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", height: 140 }}>
+                        <div style={{
+                          width: "100%",
+                          height: barH,
+                          background: `rgba(154,122,58,${alpha})`,
+                          borderRadius: "8px 8px 0 0",
+                          transition: `height 0.9s cubic-bezier(0.22,1,0.36,1) ${i * 0.1}s, opacity 0.4s ease ${i * 0.1}s`,
+                          opacity: chartVisible ? 1 : 0,
+                        }} />
+                      </div>
+
+                      <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "#888", fontWeight: 500 }}>
+                        {d.label}
+                      </span>
                     </div>
-                  </div>
+                  );
+                })}
+              </div>
 
-                  {/* Weekday headers */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5, marginBottom: 6 }}>
-                    {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
-                      <div key={d} style={{
-                        fontFamily: "'Poppins', sans-serif",
-                        fontSize: 11, color: "#BBB", textAlign: "center",
-                        paddingBottom: 8, fontWeight: 600,
-                        letterSpacing: "0.5px", textTransform: "uppercase",
-                      }}>{d}</div>
-                    ))}
-                  </div>
+              {/* Subtle baseline */}
+              <div style={{ height: 1, background: "rgba(0,0,0,0.07)", marginTop: 4 }} />
+            </div>
+          </Reveal>
+        )}
 
-                  {/* Day cells */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5 }}>
-                    {/* Empty leading cells */}
-                    {Array.from({ length: firstDay }, (_, i2) => (
-                      <div key={`e${i2}`} style={{ minHeight: 82, background: "transparent" }} />
-                    ))}
+        {/* ── Divider before past months ── */}
+        {pastMonths.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.07)" }} />
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "#BBB", letterSpacing: "2px", textTransform: "uppercase", fontWeight: 500 }}>
+              Past months
+            </span>
+            <div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.07)" }} />
+          </div>
+        )}
 
-                    {Array.from({ length: days }, (_, i2) => {
-                      const day = i2 + 1;
-                      const key = `${year}-${month}-${day}`;
-                      const mark = marks[key];
-                      const noteVal = notes[key] || "";
-                      const now = new Date();
-                      const isToday =
-                        now.getFullYear() === year &&
-                        now.getMonth() === month &&
-                        now.getDate() === day;
-                      const isPast = new Date(year, month, day) <= now;
+        {/* ── Past months revealed on scroll ── */}
+        {pastMonths.slice(0, visiblePastCount).map(({ year, month }, i) =>
+          renderMonth(year, month, { isPast: true, animDelay: 0 })
+        )}
 
-                      let cellBg     = "#EDE8E0";
-                      let cellBorder = "1px solid rgba(0,0,0,0.10)";
-                      if (mark === "tick") {
-                        cellBg     = "rgba(74,122,74,0.13)";
-                        cellBorder = "1.5px solid rgba(74,122,74,0.40)";
-                      } else if (mark === "cross") {
-                        cellBg     = "rgba(196,113,74,0.13)";
-                        cellBorder = "1.5px solid rgba(196,113,74,0.40)";
-                      } else if (isToday) {
-                        cellBg     = "#E8E2D8";
-                        cellBorder = "2px solid rgba(0,0,0,0.28)";
-                      }
-
-                      const numColor  = mark === "tick" ? "#4A7A4A" : mark === "cross" ? "#C4714A" : isToday ? "#1A1A1A" : "#666";
-                      const numWeight = mark ? 700 : isToday ? 600 : 400;
-
-                      return (
-                        <div
-                          key={day}
-                          style={{
-                            minHeight: 82,
-                            borderRadius: 10,
-                            background: cellBg,
-                            border: cellBorder,
-                            display: "flex",
-                            flexDirection: "column",
-                            padding: "8px 10px",
-                            opacity: isPast ? 1 : 0.32,
-                            transition: "background 0.15s, border 0.15s",
-                            cursor: isPast ? "pointer" : "default",
-                          }}
-                          onClick={() => isPast && toggleDay(key)}
-                        >
-                          <div style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            marginBottom: 4,
-                            flexShrink: 0,
-                          }}>
-                            <span style={{
-                              fontFamily: "'Poppins', sans-serif",
-                              fontSize: 13,
-                              fontWeight: numWeight,
-                              color: numColor,
-                              lineHeight: 1,
-                              userSelect: "none",
-                            }}>
-                              {day}
-                            </span>
-
-                            <span style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: 22,
-                              height: 22,
-                              borderRadius: "50%",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              flexShrink: 0,
-                              userSelect: "none",
-                              transition: "all 0.18s ease",
-                              background: mark === "tick"
-                                ? "#4A7A4A"
-                                : mark === "cross"
-                                ? "#C4714A"
-                                : "#EDE8E0",
-                              border: mark === "tick"
-                                ? "2px solid #4A7A4A"
-                                : mark === "cross"
-                                ? "2px solid #C4714A"
-                                : "2px solid #8A8A8A",
-                              color: mark === "tick"
-                                ? "#FFFFFF"
-                                : mark === "cross"
-                                ? "#FFFFFF"
-                                : "#8A8A8A",
-                            }}>
-                              {mark === "tick" ? "✓" : mark === "cross" ? "✗" : "·"}
-                            </span>
-                          </div>
-
-                          {isPast && (
-                            <textarea
-                              className="cal-day-note"
-                              rows={2}
-                              maxLength={60}
-                              placeholder="note…"
-                              value={noteVal}
-                              onChange={e => setNote(key, e.target.value)}
-                              onClick={e => e.stopPropagation()}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </Reveal>
-            );
-          })}
-        </div>
+        {/* ── Sentinel: triggers next month to load ── */}
+        {visiblePastCount < pastMonths.length && (
+          <div ref={sentinelRef} style={{ height: 1, marginBottom: 28 }} />
+        )}
 
         <div style={{ height: 88 }} />
       </div>
