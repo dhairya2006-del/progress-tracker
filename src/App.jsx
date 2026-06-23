@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import Spline from '@splinetool/react-spline';
 const SplineBackground = () => (
   <div style={{
     position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
+    background: "#141414",
   }}>
-    <iframe
-      src="https://my.spline.design/Slk6b8kz3LRlKiyk/"
-      style={{ width: "100%", height: "100%", border: "none" }}
-      allow="autoplay"
-      loading="lazy"
+    <Spline
+      scene="https://prod.spline.design/Slk6b8kz3LRlKiyk/scene.splinecode"
+      style={{ width: "100%", height: "100%" }}
     />
   </div>
 );
@@ -131,10 +131,10 @@ const P = {
 };
 
 const glass = {
-  background: "rgba(255,255,255,0.04)",
-  backdropFilter: "blur(16px)",
-  WebkitBackdropFilter: "blur(16px)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(8,8,8,0.85)",
+  backdropFilter: "blur(24px)",
+  WebkitBackdropFilter: "blur(24px)",
+  border: "1px solid rgba(255,255,255,0.10)",
 };
 
 // ─── HOOKS ───────────────────────────────────────────────────────────────────
@@ -168,11 +168,14 @@ function useLocalStorage(key, init) {
   return [val, set];
 }
 
-function useInView(threshold = 0.08) {
+function useInView(threshold = 0.01) {
   const ref = useRef(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setInView(true); }, { threshold });
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) setInView(true); },
+      { threshold, rootMargin: "0px 0px -20px 0px" }
+    );
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, [threshold]);
@@ -184,8 +187,9 @@ function Reveal({ children, delay = 0, style = {} }) {
   return (
     <div ref={ref} style={{
       opacity: inView ? 1 : 0,
-      transform: inView ? "translateY(0)" : "translateY(28px)",
-      transition: `opacity 0.7s ease ${delay}s, transform 0.7s cubic-bezier(0.22,1,0.36,1) ${delay}s`,
+      transform: inView ? "translateY(0)" : "translateY(14px)",
+      transition: `opacity 0.45s cubic-bezier(0.22,1,0.36,1) ${delay}s, transform 0.45s cubic-bezier(0.22,1,0.36,1) ${delay}s`,
+      willChange: "opacity, transform",
       ...style,
     }}>
       {children}
@@ -256,13 +260,13 @@ function PageHeader({ title, accent, onBack }) {
       <button onClick={onBack} style={{
         background: "none", border: "none", cursor: "pointer",
         fontFamily: "'Poppins', sans-serif", fontSize: 12,
-        color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px",
+        color: "rgba(245,240,232,0.60)", letterSpacing: "1.5px",
         textTransform: "uppercase", padding: 0,
         display: "flex", alignItems: "center", gap: 8, marginBottom: 22,
         fontWeight: 500, transition: "color 0.2s",
       }}
         onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"}
-        onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}
+        onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.60)"}
       >
         ← Back to home
       </button>
@@ -284,13 +288,15 @@ function Card({ children, accent, style = {} }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        ...glass,
         borderRadius: 28, padding: "44px 48px",
+        background: hov ? "rgba(18,18,18,0.95)" : "rgba(10,10,10,0.88)",
+        backdropFilter: "blur(28px)",
+        WebkitBackdropFilter: "blur(28px)",
+        border: `1px solid rgba(255,255,255,0.10)`,
         borderLeft: `4px solid ${accent}`,
-        boxShadow: hov ? "0 24px 60px rgba(0,0,0,0.5)" : "0 2px 18px rgba(0,0,0,0.3)",
+        boxShadow: hov ? "0 24px 60px rgba(0,0,0,0.8)" : "0 2px 18px rgba(0,0,0,0.6)",
         transform: hov ? "translateY(-4px)" : "translateY(0)",
         transition: "box-shadow 0.4s ease, transform 0.4s ease, background 0.3s ease",
-        background: hov ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.04)",
         ...style,
       }}>
       {children}
@@ -322,585 +328,12 @@ const NAV_ITEMS = [
   { id: "resources",     label: "Saved Resources",   sub: "Notes · Prep · Links",        icon: "◇", idx: 7 },
 ];
 
-// ─── NOTES BOX ───────────────────────────────────────────────────────────────
-function NotesBox() {
-  const [hovered, setHovered] = useState(false);
-  const [notes, setNotes] = useLocalStorage("home-notes", [{ id: 1, text: "" }]);
-  const leaveTimer = useRef(null);
-  const accent = "#9A6AAA";
-
-  const addNote = (e) => {
-    e.stopPropagation();
-    setNotes(prev => [...prev, { id: Date.now(), text: "" }]);
-  };
-
-  const updateNote = (id, text) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, text } : n));
-  };
-
-  const deleteNote = (id) => {
-    setNotes(prev => prev.length === 1 ? [{ id: Date.now(), text: "" }] : prev.filter(n => n.id !== id));
-  };
-
-  const onMouseEnter = () => {
-    clearTimeout(leaveTimer.current);
-    setHovered(true);
-  };
-
-  const onMouseLeave = () => {
-    leaveTimer.current = setTimeout(() => setHovered(false), 200);
-  };
-
-  return (
-    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={{ position: "relative" }}>
-      {/* Header card — always visible */}
-      <div style={{
-        display: "flex", alignItems: "flex-start", gap: 18, padding: "30px 34px",
-        borderRadius: hovered ? "20px 20px 0 0" : 20,
-        cursor: "default",
-        background: hovered ? "rgba(10,10,10,0.92)" : "rgba(10,10,10,0.82)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        borderLeft: `4px solid ${accent}`,
-        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-        transition: "all 0.35s cubic-bezier(0.22,1,0.36,1)",
-        boxShadow: hovered ? "0 0 0 rgba(0,0,0,0)" : "0 4px 24px rgba(0,0,0,0.4)",
-      }}>
-        <div style={{
-          width: 46, height: 46, borderRadius: 13, flexShrink: 0,
-          background: hovered ? accent : "rgba(255,255,255,0.06)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 20, color: hovered ? "#141414" : accent,
-          transition: "all 0.3s ease",
-        }}>✎</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 18, fontWeight: 600, color: "#FFFFFF", marginBottom: 5, letterSpacing: "-0.2px" }}>
-            Quick Notes
-          </div>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-            {notes.filter(n => n.text).length} note{notes.filter(n => n.text).length !== 1 ? "s" : ""} · Hover to expand
-          </div>
-        </div>
-        <div style={{
-          fontSize: 18, color: accent, opacity: hovered ? 1 : 0,
-          transform: hovered ? "translateX(0)" : "translateX(-8px)",
-          transition: "all 0.3s ease", alignSelf: "center",
-        }}>→</div>
-      </div>
-
-      {/* Expanded panel */}
-      <div style={{
-        overflow: "hidden",
-        maxHeight: hovered ? "600px" : "0px",
-        opacity: hovered ? 1 : 0,
-        transition: "max-height 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease",
-        background: "rgba(10,10,10,0.92)",
-        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-        border: hovered ? "1px solid rgba(255,255,255,0.07)" : "none",
-        borderTop: "none",
-        borderLeft: `4px solid ${accent}`,
-        borderRadius: "0 0 20px 20px",
-        boxShadow: hovered ? "0 18px 48px rgba(0,0,0,0.55)" : "none",
-      }}>
-        <div style={{ padding: "0 34px 24px" }}>
-          {/* Add note button */}
-          <button onClick={addNote} style={{
-            display: "flex", alignItems: "center", gap: 8,
-            background: `${accent}18`, border: `1px solid ${accent}35`,
-            color: accent, borderRadius: 10, padding: "7px 16px",
-            fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 600,
-            cursor: "pointer", marginBottom: 16, marginTop: 18,
-            transition: "background 0.2s",
-          }}
-            onMouseEnter={e => e.currentTarget.style.background = `${accent}30`}
-            onMouseLeave={e => e.currentTarget.style.background = `${accent}18`}
-          >
-            + Add Note
-          </button>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {notes.map((note, i) => (
-              <div key={note.id} style={{
-                display: "flex", alignItems: "flex-start", gap: 10,
-                background: "rgba(255,255,255,0.05)", borderRadius: 12,
-                padding: "12px 14px", border: "1px solid rgba(255,255,255,0.08)",
-              }}>
-                <span style={{ color: accent, fontSize: 16, marginTop: 2, flexShrink: 0 }}>•</span>
-                <textarea
-                  value={note.text}
-                  onChange={e => updateNote(note.id, e.target.value)}
-                  placeholder="Write a note…"
-                  rows={2}
-                  style={{
-                    flex: 1, background: "transparent", border: "none", outline: "none",
-                    resize: "none", fontFamily: "'Poppins', sans-serif", fontSize: 13,
-                    color: "rgba(255,255,255,0.85)", lineHeight: 1.6,
-                    overflow: "hidden", minHeight: 40,
-                  }}
-                  onInput={e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
-                />
-                <button onClick={() => deleteNote(note.id)} style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "rgba(255,255,255,0.2)", fontSize: 16, flexShrink: 0,
-                  padding: "0 2px", lineHeight: 1,
-                  transition: "color 0.2s",
-                }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#E8906A"}
-                  onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}
-                >×</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── TASKS BOX ────────────────────────────────────────────────────────────────
-function TasksBox() {
-  const [hovered, setHovered] = useState(false);
-  const [tasks, setTasks] = useLocalStorage("home-tasks", []);
-  const [newTask, setNewTask] = useState("");
-  const inputRef = useRef(null);
-  const leaveTimer = useRef(null);
-  const accent = "#5A90AA";
-
-  const addTask = () => {
-    if (!newTask.trim()) return;
-    setTasks(prev => [...prev, { id: Date.now(), text: newTask.trim(), done: false }]);
-    setNewTask("");
-  };
-
-  const toggleTask = (id) => {
-    // mark done then remove after animation
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: true } : t));
-    setTimeout(() => {
-      setTasks(prev => prev.filter(t => t.id !== id));
-    }, 600);
-  };
-
-  const onMouseEnter = () => {
-    clearTimeout(leaveTimer.current);
-    setHovered(true);
-  };
-
-  const onMouseLeave = () => {
-    leaveTimer.current = setTimeout(() => setHovered(false), 200);
-  };
-
-  const pending = tasks.filter(t => !t.done).length;
-
-  return (
-    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={{ position: "relative" }}>
-      {/* Header card */}
-      <div style={{
-        display: "flex", alignItems: "flex-start", gap: 18, padding: "30px 34px",
-        borderRadius: hovered ? "20px 20px 0 0" : 20,
-        cursor: "default",
-        background: hovered ? "rgba(10,10,10,0.92)" : "rgba(10,10,10,0.82)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        borderLeft: `4px solid ${accent}`,
-        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-        transition: "all 0.35s cubic-bezier(0.22,1,0.36,1)",
-        boxShadow: hovered ? "0 0 0 rgba(0,0,0,0)" : "0 4px 24px rgba(0,0,0,0.4)",
-      }}>
-        <div style={{
-          width: 46, height: 46, borderRadius: 13, flexShrink: 0,
-          background: hovered ? accent : "rgba(255,255,255,0.06)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 20, color: hovered ? "#141414" : accent,
-          transition: "all 0.3s ease",
-        }}>✓</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 18, fontWeight: 600, color: "#FFFFFF", marginBottom: 5, letterSpacing: "-0.2px" }}>
-            Tasks
-          </div>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-            {pending} task{pending !== 1 ? "s" : ""} remaining · Hover to expand
-          </div>
-        </div>
-        <div style={{
-          fontSize: 18, color: accent, opacity: hovered ? 1 : 0,
-          transform: hovered ? "translateX(0)" : "translateX(-8px)",
-          transition: "all 0.3s ease", alignSelf: "center",
-        }}>→</div>
-      </div>
-
-      {/* Expanded panel */}
-      <div style={{
-        overflow: "hidden",
-        maxHeight: hovered ? "600px" : "0px",
-        opacity: hovered ? 1 : 0,
-        transition: "max-height 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease",
-        background: "rgba(10,10,10,0.92)",
-        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-        border: hovered ? "1px solid rgba(255,255,255,0.07)" : "none",
-        borderTop: "none",
-        borderLeft: `4px solid ${accent}`,
-        borderRadius: "0 0 20px 20px",
-        boxShadow: hovered ? "0 18px 48px rgba(0,0,0,0.55)" : "none",
-      }}>
-        <div style={{ padding: "0 34px 24px" }}>
-          {/* Add task input */}
-          <div style={{
-            display: "flex", gap: 10, marginTop: 18, marginBottom: 16,
-          }}>
-            <input
-              ref={inputRef}
-              value={newTask}
-              onChange={e => setNewTask(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") addTask(); }}
-              placeholder="Add a task and press Enter…"
-              style={{
-                flex: 1, background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10,
-                padding: "9px 14px", fontFamily: "'Poppins', sans-serif",
-                fontSize: 13, color: "#FFFFFF", outline: "none",
-              }}
-            />
-            <button onClick={addTask} style={{
-              background: accent, border: "none", borderRadius: 10,
-              padding: "9px 18px", fontFamily: "'Poppins', sans-serif",
-              fontSize: 13, fontWeight: 600, color: "#141414",
-              cursor: "pointer", transition: "opacity 0.2s",
-            }}
-              onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
-              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-            >Add</button>
-          </div>
-
-          {/* Task list */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {tasks.length === 0 && (
-              <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: "rgba(255,255,255,0.25)", textAlign: "center", padding: "12px 0", fontStyle: "italic" }}>
-                No tasks yet — add one above
-              </div>
-            )}
-            {tasks.map(task => (
-              <div key={task.id} style={{
-                display: "flex", alignItems: "center", gap: 12,
-                background: task.done ? "rgba(90,154,90,0.10)" : "rgba(255,255,255,0.05)",
-                borderRadius: 12, padding: "11px 14px",
-                border: task.done ? "1px solid rgba(90,154,90,0.25)" : "1px solid rgba(255,255,255,0.08)",
-                opacity: task.done ? 0.4 : 1,
-                transform: task.done ? "scale(0.98)" : "scale(1)",
-                transition: "all 0.5s ease",
-              }}>
-                {/* Checkbox */}
-                <div onClick={() => toggleTask(task.id)} style={{
-                  width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                  background: task.done ? accent : "transparent",
-                  border: `2px solid ${task.done ? accent : "rgba(255,255,255,0.25)"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", transition: "all 0.3s ease",
-                }}>
-                  {task.done && <span style={{ color: "#141414", fontSize: 11, fontWeight: 700 }}>✓</span>}
-                </div>
-                <span style={{
-                  fontFamily: "'Poppins', sans-serif", fontSize: 13,
-                  color: task.done ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.85)",
-                  textDecoration: task.done ? "line-through" : "none",
-                  flex: 1, lineHeight: 1.5, wordBreak: "break-word",
-                  transition: "all 0.3s ease",
-                }}>{task.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── DEADLINE BOX ─────────────────────────────────────────────────────────────
-function DeadlineBox() {
-  const [hovered, setHovered] = useState(false);
-  const [deadlines, setDeadlines] = useLocalStorage("home-deadlines", []);
-  const [newTask, setNewTask] = useState("");
-  const [newDate, setNewDate] = useState("");
-  const leaveTimer = useRef(null);
-  const accent = "#C4A060";
-
-  const addDeadline = () => {
-    if (!newTask.trim()) return;
-    setDeadlines(prev => [...prev, { id: Date.now(), task: newTask.trim(), date: newDate }]);
-    setNewTask("");
-    setNewDate("");
-  };
-
-  const removeDeadline = (id) => {
-    setDeadlines(prev => prev.filter(d => d.id !== id));
-  };
-
-  const onMouseEnter = () => {
-    clearTimeout(leaveTimer.current);
-    setHovered(true);
-  };
-
-  const onMouseLeave = () => {
-    leaveTimer.current = setTimeout(() => setHovered(false), 200);
-  };
-
-  const isOverdue = (dateStr) => {
-    if (!dateStr) return false;
-    return new Date(dateStr) < new Date(new Date().toDateString());
-  };
-
-  const isDueSoon = (dateStr) => {
-    if (!dateStr) return false;
-    const diff = (new Date(dateStr) - new Date(new Date().toDateString())) / (1000 * 60 * 60 * 24);
-    return diff >= 0 && diff <= 3;
-  };
-
-  const upcomingCount = deadlines.filter(d => !isOverdue(d.date)).length;
-
-  return (
-    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={{ position: "relative" }}>
-      {/* Header card */}
-      <div style={{
-        display: "flex", alignItems: "flex-start", gap: 18, padding: "30px 34px",
-        borderRadius: hovered ? "20px 20px 0 0" : 20,
-        cursor: "default",
-        background: hovered ? "rgba(10,10,10,0.92)" : "rgba(10,10,10,0.82)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        borderLeft: `4px solid ${accent}`,
-        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-        transition: "all 0.35s cubic-bezier(0.22,1,0.36,1)",
-        boxShadow: hovered ? "0 0 0 rgba(0,0,0,0)" : "0 4px 24px rgba(0,0,0,0.4)",
-      }}>
-        <div style={{
-          width: 46, height: 46, borderRadius: 13, flexShrink: 0,
-          background: hovered ? accent : "rgba(255,255,255,0.06)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 20, color: hovered ? "#141414" : accent,
-          transition: "all 0.3s ease",
-        }}>⏰</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 18, fontWeight: 600, color: "#FFFFFF", marginBottom: 5, letterSpacing: "-0.2px" }}>
-            Deadlines
-          </div>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-            {upcomingCount} upcoming · Hover to expand
-          </div>
-        </div>
-        <div style={{
-          fontSize: 18, color: accent, opacity: hovered ? 1 : 0,
-          transform: hovered ? "translateX(0)" : "translateX(-8px)",
-          transition: "all 0.3s ease", alignSelf: "center",
-        }}>→</div>
-      </div>
-
-      {/* Expanded panel */}
-      <div style={{
-        overflow: "hidden",
-        maxHeight: hovered ? "700px" : "0px",
-        opacity: hovered ? 1 : 0,
-        transition: "max-height 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease",
-        background: "rgba(10,10,10,0.92)",
-        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-        border: hovered ? "1px solid rgba(255,255,255,0.07)" : "none",
-        borderTop: "none",
-        borderLeft: `4px solid ${accent}`,
-        borderRadius: "0 0 20px 20px",
-        boxShadow: hovered ? "0 18px 48px rgba(0,0,0,0.55)" : "none",
-      }}>
-        <div style={{ padding: "0 34px 24px" }}>
-
-          {/* Add deadline row */}
-          <div style={{ display: "flex", gap: 10, marginTop: 18, marginBottom: 18, alignItems: "center" }}>
-            <input
-              value={newTask}
-              onChange={e => setNewTask(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") addDeadline(); }}
-              placeholder="Task name…"
-              style={{
-                flex: 1, background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10,
-                padding: "9px 14px", fontFamily: "'Poppins', sans-serif",
-                fontSize: 13, color: "#FFFFFF", outline: "none",
-              }}
-            />
-            <input
-              type="date"
-              value={newDate}
-              onChange={e => setNewDate(e.target.value)}
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10,
-                padding: "9px 14px", fontFamily: "'Poppins', sans-serif",
-                fontSize: 13, color: "#FFFFFF", outline: "none",
-                colorScheme: "dark",
-              }}
-            />
-            <button onClick={addDeadline} style={{
-              background: accent, border: "none", borderRadius: 10,
-              padding: "9px 18px", fontFamily: "'Poppins', sans-serif",
-              fontSize: 13, fontWeight: 600, color: "#141414",
-              cursor: "pointer", transition: "opacity 0.2s", whiteSpace: "nowrap",
-            }}
-              onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
-              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-            >Add</button>
-          </div>
-
-          {/* Column headers */}
-          {deadlines.length > 0 && (
-            <div style={{
-              display: "grid", gridTemplateColumns: "1fr 140px 32px", gap: 12,
-              padding: "6px 14px", marginBottom: 8,
-            }}>
-              <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px" }}>Task</span>
-              <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px" }}>Deadline</span>
-              <span />
-            </div>
-          )}
-
-          {/* Deadline rows */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {deadlines.length === 0 && (
-              <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: "rgba(255,255,255,0.25)", textAlign: "center", padding: "12px 0", fontStyle: "italic" }}>
-                No deadlines yet — add one above
-              </div>
-            )}
-            {deadlines.map(d => {
-              const overdue = isOverdue(d.date);
-              const soon = isDueSoon(d.date);
-              const rowColor = overdue ? "#E8906A" : soon ? "#C4A060" : "rgba(255,255,255,0.85)";
-              const rowBg = overdue ? "rgba(232,144,106,0.10)" : soon ? "rgba(196,160,96,0.10)" : "rgba(255,255,255,0.05)";
-              const rowBorder = overdue ? "1px solid rgba(232,144,106,0.25)" : soon ? "1px solid rgba(196,160,96,0.25)" : "1px solid rgba(255,255,255,0.08)";
-              return (
-                <div key={d.id} style={{
-                  display: "grid", gridTemplateColumns: "1fr 140px 32px", gap: 12,
-                  alignItems: "center", background: rowBg, borderRadius: 12,
-                  padding: "11px 14px", border: rowBorder,
-                }}>
-                  <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: rowColor, lineHeight: 1.5, wordBreak: "break-word" }}>
-                    {d.task}
-                  </span>
-                  <span style={{
-                    fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 600,
-                    color: overdue ? "#E8906A" : soon ? "#C4A060" : "rgba(255,255,255,0.55)",
-                    textAlign: "center",
-                  }}>
-                    {d.date ? new Date(d.date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
-                    {overdue && <span style={{ display: "block", fontSize: 10, color: "#E8906A", fontWeight: 400 }}>Overdue</span>}
-                    {soon && !overdue && <span style={{ display: "block", fontSize: 10, color: "#C4A060", fontWeight: 400 }}>Due soon</span>}
-                  </span>
-                  <button onClick={() => removeDeadline(d.id)} style={{
-                    background: "none", border: "none", cursor: "pointer",
-                    color: "rgba(255,255,255,0.2)", fontSize: 18, padding: 0,
-                    lineHeight: 1, transition: "color 0.2s",
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.color = "#E8906A"}
-                    onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}
-                  >×</button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── DEADLINE NOTIFICATIONS ───────────────────────────────────────────────────
-function DeadlineNotifications() {
-  const [deadlines] = useLocalStorage("home-deadlines", []);
-  const [dismissed, setDismissed] = useLocalStorage("dismissed-notifications", []);
-
-  const today = new Date(new Date().toDateString());
-
-  const dueTomorrow = deadlines.filter(d => {
-    if (!d.date) return false;
-    const diff = (new Date(d.date + "T00:00:00") - today) / (1000 * 60 * 60 * 24);
-    return diff >= 0 && diff <= 1 && !dismissed.includes(`${d.id}-${d.date}`);
-  });
-
-  const dismiss = (d) => {
-    setDismissed(prev => [...prev, `${d.id}-${d.date}`]);
-  };
-
-  if (dueTomorrow.length === 0) return null;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
-      {dueTomorrow.map((d, i) => {
-        const isToday = (new Date(d.date + "T00:00:00") - today) === 0;
-        const accent = isToday ? "#E8906A" : "#C4A060";
-        const bg = isToday ? "rgba(232,144,106,0.13)" : "rgba(196,160,96,0.13)";
-        const border = isToday ? "1px solid rgba(232,144,106,0.35)" : "1px solid rgba(196,160,96,0.35)";
-        return (
-          <div
-            key={d.id}
-            style={{
-              display: "flex", alignItems: "center", gap: 14,
-              background: bg,
-              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-              border, borderLeft: `4px solid ${accent}`,
-              borderRadius: 16, padding: "16px 20px",
-              animation: `slideInNotif 0.5s cubic-bezier(0.22,1,0.36,1) ${i * 0.08}s both`,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-            }}
-          >
-            <span style={{ fontSize: 22, flexShrink: 0 }}>{isToday ? "🔴" : "🟡"}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 600,
-                color: accent, marginBottom: 2,
-              }}>
-                {isToday ? "Due Today" : "Due Tomorrow"}
-              </div>
-              <div style={{
-                fontFamily: "'Poppins', sans-serif", fontSize: 14,
-                color: "rgba(255,255,255,0.88)", fontWeight: 500, lineHeight: 1.4,
-              }}>
-                {d.task}
-              </div>
-              {d.date && (
-                <div style={{
-                  fontFamily: "'Poppins', sans-serif", fontSize: 11,
-                  color: "rgba(255,255,255,0.40)", marginTop: 3,
-                }}>
-                  {new Date(d.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => dismiss(d)}
-              style={{
-                background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: "50%", width: 28, height: 28,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", color: "rgba(255,255,255,0.45)", fontSize: 16,
-                flexShrink: 0, transition: "all 0.2s", fontFamily: "'Poppins', sans-serif",
-                lineHeight: 1,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,100,74,0.25)"; e.currentTarget.style.color = "#E8906A"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
-              title="Dismiss"
-            >×</button>
-          </div>
-        );
-      })}
-      <style>{`
-        @keyframes slideInNotif {
-          from { opacity: 0; transform: translateY(-12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ─── HOME ─────────────────────────────────────────────────────────────────────
 function Home({ navigate }) {
   const [vis, setVis] = useState(false);
   useEffect(() => { setTimeout(() => setVis(true), 60); }, []);
 
   return (
     <div>
-      <DeadlineNotifications />
       <div style={{ minHeight: "56vh", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: 72, paddingTop: 88 }}>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(20px)", transition: "all 1s ease 0.1s" }}>
           <span style={{
@@ -918,18 +351,18 @@ function Home({ navigate }) {
           }}>{CONFIG.profile.name}</h1>
         </div>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(20px)", transition: "all 1s ease 0.32s" }}>
-          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 18, color: "rgba(245,240,232,0.45)", margin: "14px 0 0", fontWeight: 400 }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 18, color: "rgba(245,240,232,0.75)", margin: "14px 0 0", fontWeight: 400 }}>
             {CONFIG.profile.degree}
           </p>
         </div>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(16px)", transition: "all 1s ease 0.44s", marginTop: 30 }}>
-          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 19, color: "rgba(245,240,232,0.28)", margin: 0, lineHeight: 1.7, fontStyle: "italic", fontWeight: 400 }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 19, color: "rgba(245,240,232,0.55)", margin: 0, lineHeight: 1.7, fontStyle: "italic", fontWeight: 400 }}>
             "Building intelligent systems, one commit at a time."
           </p>
         </div>
         <div style={{ opacity: vis ? 1 : 0, transition: "opacity 1s ease 0.9s", marginTop: 52, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 1, height: 40, background: "linear-gradient(to bottom, transparent, rgba(245,240,232,0.2))" }} />
-          <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: "rgba(245,240,232,0.22)", letterSpacing: "2px", textTransform: "uppercase", fontWeight: 400 }}>
+          <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: "rgba(245,240,232,0.50)", letterSpacing: "2px", textTransform: "uppercase", fontWeight: 400 }}>
             Select a section below
           </span>
         </div>
@@ -944,21 +377,6 @@ function Home({ navigate }) {
           </Reveal>
         ))}
       </div>
-
-      {/* Divider */}
-      <div style={{ height: 1, background: "linear-gradient(to right, transparent, rgba(255,255,255,0.08), transparent)", margin: "40px 0" }} />
-
-      {/* Notes + Tasks row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, alignItems: "start" }}>
-        <Reveal delay={0.1}><NotesBox /></Reveal>
-        <Reveal delay={0.16}><TasksBox /></Reveal>
-      </div>
-
-      {/* Deadlines row */}
-      <div style={{ marginTop: 22 }}>
-        <Reveal delay={0.22}><DeadlineBox /></Reveal>
-      </div>
-
       <div style={{ height: 88 }} />
     </div>
   );
@@ -969,35 +387,35 @@ function NavCard({ item, color, navigate }) {
     <>
       <style>{`
         .nav-card {
-          width: 100%; text-align: left;
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.07);
-          border-left: 4px solid var(--accent);
-          border-radius: 22px; padding: 36px 40px; cursor: pointer;
-          display: flex; align-items: flex-start; gap: 22px; position: relative;
-          transition: all 0.35s cubic-bezier(0.22,1,0.36,1);
-          backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-          font-family: 'Poppins', sans-serif;
-        }
-        .nav-card:hover {
-          background: rgba(255,255,255,0.09);
-          border-color: rgba(255,255,255,0.12);
-          border-left-color: var(--accent);
-          box-shadow: 0 20px 56px rgba(0,0,0,0.55);
-          transform: translateY(-5px) scale(1.008);
-        }
-        .nav-card-icon {
-          width: 52px; height: 52px; border-radius: 14px;
-          background: rgba(255,255,255,0.06);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 22px; color: var(--accent);
-          transition: all 0.35s ease; flex-shrink: 0; margin-top: 2px;
-        }
-        .nav-card:hover .nav-card-icon { background: var(--accent); color: #141414; }
-        .nav-card-title { font-size: 21px; font-weight: 600; color: #F5F0E8; line-height: 1.25; margin-bottom: 7px; letter-spacing: -0.3px; }
-        .nav-card-sub { font-size: 12px; color: rgba(245,240,232,0.35); line-height: 1.5; font-weight: 400; }
-        .nav-card-arrow { font-size: 20px; color: var(--accent); opacity: 0; transform: translateX(-8px); transition: all 0.3s ease; align-self: center; }
-        .nav-card:hover .nav-card-arrow { opacity: 1; transform: translateX(0); }
+  width: 100%; text-align: left;
+  background: rgba(10,10,10,0.82);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-left: 4px solid var(--accent);
+  border-radius: 22px; padding: 36px 40px; cursor: pointer;
+  display: flex; align-items: flex-start; gap: 22px; position: relative;
+  transition: all 0.35s cubic-bezier(0.22,1,0.36,1);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  font-family: 'Poppins', sans-serif;
+}
+.nav-card:hover {
+  background: rgba(22,22,22,0.95);
+  border-color: rgba(255,255,255,0.14);
+  border-left-color: var(--accent);
+  box-shadow: 0 20px 56px rgba(0,0,0,0.75);
+  transform: translateY(-5px) scale(1.008);
+}
+.nav-card-title { font-size: 21px; font-weight: 600; color: #FFFFFF; line-height: 1.25; margin-bottom: 7px; letter-spacing: -0.3px; }
+.nav-card-sub { font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.5; font-weight: 400; }
+.nav-card-icon {
+  width: 52px; height: 52px; border-radius: 14px;
+  background: rgba(255,255,255,0.08);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: var(--accent);
+  transition: all 0.35s ease; flex-shrink: 0; margin-top: 2px;
+}
+.nav-card:hover .nav-card-icon { background: var(--accent); color: #141414; }
+.nav-card-arrow { font-size: 20px; color: var(--accent); opacity: 0; transform: translateX(-8px); transition: all 0.3s ease; align-self: center; }
+.nav-card:hover .nav-card-arrow { opacity: 1; transform: translateX(0); }
       `}</style>
       <button onClick={() => navigate(item.id)} style={{ "--accent": color.accent }} className="nav-card">
         <div className="nav-card-icon">{item.icon}</div>
@@ -1023,7 +441,7 @@ function ProfilePage({ onBack }) {
           <Card accent={color.accent}>
             <CardTitle accent={color.accent}>About Me</CardTitle>
             <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, color: "rgba(245,240,232,0.7)", lineHeight: 1.85, margin: "0 0 22px", fontWeight: 400 }}>{profile.about}</p>
-            <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, color: "rgba(245,240,232,0.35)", lineHeight: 1.75, margin: 0, fontStyle: "italic", fontWeight: 400 }}>
+            <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, color: "rgba(245,240,232,0.65)", lineHeight: 1.75, margin: 0, fontStyle: "italic", fontWeight: 400 }}>
               Focus: {profile.focus.join(" · ")}
             </p>
           </Card>
@@ -1034,7 +452,7 @@ function ProfilePage({ onBack }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
               {profile.stats.map(s => (
                 <div key={s.label} style={{ background: "rgba(255,255,255,0.05)", borderRadius: 16, padding: "20px 22px", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: "rgba(245,240,232,0.3)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8, fontWeight: 500 }}>{s.label}</div>
+                  <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: "rgba(245,240,232,0.60)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8, fontWeight: 500 }}>{s.label}</div>
                   <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 29, fontWeight: 700, color: "#F5F0E8", letterSpacing: "-0.5px" }}>{s.value}</div>
                 </div>
               ))}
@@ -1074,7 +492,7 @@ function ProfilePage({ onBack }) {
 const EMH_STATES = ["Pending", "Visited", "Revised"];
 const REV_STATES = ["Pending", "Done"];
 const STATUS_STYLE = {
-  Pending:  { bg: "rgba(255,255,255,0.05)", color: "rgba(245,240,232,0.3)", border: "rgba(255,255,255,0.08)" },
+  Pending:  { bg: "rgba(255,255,255,0.05)", color: "rgba(245,240,232,0.60)", border: "rgba(255,255,255,0.08)" },
   Visited:  { bg: "rgba(184,118,42,0.15)",  color: "#C4A060", border: "rgba(184,118,42,0.35)" },
   Revised:  { bg: "rgba(74,154,74,0.15)",   color: "#6ABB7A", border: "rgba(74,154,74,0.35)" },
   Done:     { bg: "rgba(74,90,154,0.15)",   color: "#8AAAE8", border: "rgba(74,90,154,0.35)" },
@@ -1201,7 +619,7 @@ function AIMLPage({ onBack }) {
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 9 }}>
                       <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 13, color: "#F5F0E8" }}>{t.name}</span>
-                      <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: pct === 100 ? color.accent : "rgba(245,240,232,0.35)", fontWeight: pct === 100 ? 700 : 400 }}>{done}/{total}</span>
+                      <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: pct === 100 ? color.accent : "rgba(245,240,232,0.65)", fontWeight: pct === 100 ? 700 : 400 }}>{done}/{total}</span>
                     </div>
                     <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${pct}%`, background: pct === 100 ? "#5C9A5C" : color.accent, borderRadius: 4, transition: "width 0.5s ease" }} />
@@ -1228,7 +646,7 @@ function AIMLPage({ onBack }) {
                             }}>
                               {isDone && <span style={{ color: "#141414", fontSize: 10 }}>✓</span>}
                             </div>
-                            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: isDone ? "rgba(245,240,232,0.3)" : "rgba(245,240,232,0.85)", textDecoration: isDone ? "line-through" : "none", fontWeight: 400 }}>{s}</span>
+                            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: isDone ? "rgba(245,240,232,0.60)" : "rgba(245,240,232,0.85)", textDecoration: isDone ? "line-through" : "none", fontWeight: 400 }}>{s}</span>
                           </label>
                         );
                       })}
@@ -1261,13 +679,13 @@ function CurrentTopicPage({ onBack }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 18, marginBottom: 10 }}>
             <div>
               <CardTitle accent={color.accent}>{currentTopic.name}</CardTitle>
-              <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", marginTop: -26, marginBottom: 22, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 500 }}>
+              <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(245,240,232,0.60)", marginTop: -26, marginBottom: 22, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 500 }}>
                 84 Video Lectures · Now Studying
               </p>
             </div>
             <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 18, padding: "18px 32px", textAlign: "center", border: "1px solid rgba(255,255,255,0.08)" }}>
               <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 40, fontWeight: 700, color: "#F5F0E8", letterSpacing: "-1.5px" }}>{pct}%</div>
-              <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(245,240,232,0.35)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 500 }}>{doneCount}/{currentTopic.videos.length} done</div>
+              <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(245,240,232,0.65)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 500 }}>{doneCount}/{currentTopic.videos.length} done</div>
             </div>
           </div>
           <div style={{ height: 7, background: "rgba(255,255,255,0.08)", borderRadius: 6, marginBottom: 30, overflow: "hidden" }}>
@@ -1294,7 +712,7 @@ function CurrentTopicPage({ onBack }) {
                   </div>
                   <div>
                     <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: "rgba(245,240,232,0.25)", marginBottom: 2, fontWeight: 400 }}>#{v.id}</div>
-                    <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: done ? "rgba(245,240,232,0.3)" : "rgba(245,240,232,0.8)", textDecoration: done ? "line-through" : "none", lineHeight: 1.45, fontWeight: 400 }}>{v.title}</div>
+                    <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: done ? "rgba(245,240,232,0.60)" : "rgba(245,240,232,0.8)", textDecoration: done ? "line-through" : "none", lineHeight: 1.45, fontWeight: 400 }}>{v.title}</div>
                   </div>
                 </label>
               );
@@ -1412,17 +830,19 @@ function CalendarPage({ onBack }) {
     return (
       <div key={`${year}-${month}`} style={{
         ...glass, borderRadius: 22, padding: "28px 32px", marginBottom: 28,
-        background: isPast ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.05)",
+        background: isPast ? "rgba(8,8,8,0.82)" : "rgba(10,10,10,0.88)",
+backdropFilter: "blur(24px)",
+WebkitBackdropFilter: "blur(24px)",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: isPast ? 22 : 26, fontWeight: 600, color: isPast ? "rgba(245,240,232,0.55)" : "#F5F0E8", letterSpacing: "-0.5px" }}>
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: isPast ? 22 : 26, fontWeight: 600, color: isPast ? "rgba(255,255,255,0.75)" : "#FFFFFF", letterSpacing: "-0.5px" }}>
               {monthNames[month]} {year}
             </span>
             {isPast && <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: "rgba(245,240,232,0.25)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 500 }}>Past</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: "rgba(245,240,232,0.3)", fontWeight: 400 }}>{tickCount}/{days} days studied</span>
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: "rgba(245,240,232,0.60)", fontWeight: 400 }}>{tickCount}/{days} days studied</span>
             <span style={{
               fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 700,
               color: eff >= 70 ? "#6ABB7A" : eff >= 40 ? color.accent : "#E8906A",
@@ -1434,7 +854,7 @@ function CalendarPage({ onBack }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5, marginBottom: 6 }}>
           {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
-            <div key={d} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(245,240,232,0.2)", textAlign: "center", paddingBottom: 8, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>{d}</div>
+            <div key={d} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(255,255,255,0.55)", textAlign: "center", paddingBottom: 8, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>{d}</div>
           ))}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5 }}>
@@ -1446,11 +866,11 @@ function CalendarPage({ onBack }) {
             const noteVal = notes[key] || "";
             const isToday = now.getFullYear() === year && now.getMonth() === month && now.getDate() === day;
             const isFuture = new Date(year, month, day) > now;
-            let cellBg = "rgba(255,255,255,0.03)", cellBorder = "1px solid rgba(255,255,255,0.07)";
+            let cellBg = "rgba(255,255,255,0.08)", cellBorder = "1px solid rgba(255,255,255,0.14)";
             if (mark === "tick") { cellBg = "rgba(74,154,74,0.15)"; cellBorder = "1.5px solid rgba(74,154,74,0.4)"; }
             else if (mark === "cross") { cellBg = "rgba(232,144,106,0.15)"; cellBorder = "1.5px solid rgba(232,144,106,0.4)"; }
-            else if (isToday) { cellBg = "rgba(255,255,255,0.09)"; cellBorder = "2px solid rgba(255,255,255,0.3)"; }
-            const numColor = mark === "tick" ? "#6ABB7A" : mark === "cross" ? "#E8906A" : isToday ? "#F5F0E8" : "rgba(245,240,232,0.45)";
+            else if (isToday) { cellBg = "rgba(255,255,255,0.18)"; cellBorder = "2px solid rgba(255,255,255,0.55)"; }
+            const numColor = mark === "tick" ? "#6ABB7A" : mark === "cross" ? "#E8906A" : isToday ? "#FFFFFF" : "rgba(255,255,255,0.80)";
             return (
               <div key={day} style={{
                 minHeight: isPast ? 68 : 82, borderRadius: 10, background: cellBg, border: cellBorder,
@@ -1476,7 +896,7 @@ function CalendarPage({ onBack }) {
                     style={{
                       width: "100%", background: "transparent", border: "none", outline: "none",
                       resize: "none", fontFamily: "'Poppins', sans-serif", fontSize: 11,
-                      color: "rgba(245,240,232,0.4)", lineHeight: 1.4, cursor: "text", padding: 0, marginTop: 2,
+                      color: "rgba(255,255,255,0.70)", lineHeight: 1.4, cursor: "text", padding: 0, marginTop: 2,
                     }}
                   />
                 )}
@@ -1497,7 +917,7 @@ function CalendarPage({ onBack }) {
   return (
     <div style={{ width: "100%", boxSizing: "border-box" }}>
       <PageHeader title="Study Calendar" accent={color.accent} onBack={onBack} />
-      <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", marginBottom: 32, textAlign: "center", fontWeight: 400 }}>
+      <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(245,240,232,0.60)", marginBottom: 32, textAlign: "center", fontWeight: 400 }}>
         Click a day to cycle: unmarked → ✓ studied → ✗ missed → clear · Click the note area to write
       </p>
       <Reveal>{renderMonth(currentYear, currentMonth)}</Reveal>
@@ -1516,7 +936,7 @@ function CalendarPage({ onBack }) {
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 <span style={{ fontSize: 18 }}>{s.icon}</span>
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(245,240,232,0.3)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 500 }}>{s.label}</span>
+                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(245,240,232,0.60)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 500 }}>{s.label}</span>
               </div>
               <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 22, fontWeight: 700, color: s.highlight ? color.accent : "#F5F0E8", letterSpacing: "-0.5px", lineHeight: 1.2 }}>{s.value}</div>
             </div>
@@ -1527,7 +947,7 @@ function CalendarPage({ onBack }) {
         <Reveal>
           <div ref={chartRef} style={{ ...glass, borderRadius: 22, padding: "32px 36px 28px", marginBottom: 40 }}>
             <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 600, color: "#F5F0E8", marginBottom: 4, letterSpacing: "-0.4px" }}>Performance Analysis</h2>
-            <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", marginBottom: 36, fontWeight: 400 }}>
+            <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(245,240,232,0.60)", marginBottom: 36, fontWeight: 400 }}>
               Efficiency across the last {chartData.length} completed month{chartData.length !== 1 ? "s" : ""}
             </p>
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 24, height: 180 }}>
@@ -1540,7 +960,7 @@ function CalendarPage({ onBack }) {
                     <div style={{ width: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", height: 140 }}>
                       <div style={{ width: "100%", height: barH, background: `rgba(196,160,96,${alpha})`, borderRadius: "8px 8px 0 0", transition: `height 0.9s cubic-bezier(0.22,1,0.36,1) ${i * 0.1}s, opacity 0.4s ease ${i * 0.1}s`, opacity: chartVisible ? 1 : 0 }} />
                     </div>
-                    <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(245,240,232,0.4)", fontWeight: 500 }}>{d.label}</span>
+                    <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 500 }}>{d.label}</span>
                   </div>
                 );
               })}
@@ -1579,8 +999,8 @@ function AcademicsPage({ onBack }) {
             <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 18, padding: "24px 26px", border: "1px solid rgba(255,255,255,0.07)" }}>
               <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 19, fontWeight: 600, color: "#F5F0E8", margin: "0 0 18px", letterSpacing: "-0.3px" }}>{currentSem.name}</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 12, alignItems: "center", marginBottom: 10, padding: "0 14px" }}>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(245,240,232,0.3)" }}>Course</div>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(245,240,232,0.3)", textAlign: "right" }}>Credits</div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(245,240,232,0.60)" }}>Course</div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(245,240,232,0.60)", textAlign: "right" }}>Credits</div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {currentSem.courses.map(c => (
@@ -1625,7 +1045,7 @@ function ProjectsPage({ onBack }) {
                   </div>
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                      <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(245,240,232,0.3)", fontWeight: 400 }}>Progress</span>
+                      <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: "rgba(245,240,232,0.60)", fontWeight: 400 }}>Progress</span>
                       <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, fontWeight: 600, color: "rgba(245,240,232,0.6)" }}>{p.progress}%</span>
                     </div>
                     <div style={{ height: 5, background: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" }}>
@@ -1637,7 +1057,7 @@ function ProjectsPage({ onBack }) {
                       <span key={t} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, background: "rgba(255,255,255,0.07)", color: "rgba(245,240,232,0.5)", padding: "3px 9px", borderRadius: 12, fontWeight: 500 }}>{t}</span>
                     ))}
                   </div>
-                  <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(245,240,232,0.4)", margin: 0, lineHeight: 1.65, fontStyle: "italic", fontWeight: 400 }}>{p.notes}</p>
+                  <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12, color: "rgba(255,255,255,0.70)", margin: 0, lineHeight: 1.65, fontStyle: "italic", fontWeight: 400 }}>{p.notes}</p>
                 </div>
               );
             })}
@@ -1692,96 +1112,6 @@ function ResourcesPage({ onBack }) {
   );
 }
 
-// ─── DEADLINE NOTIFICATION BANNER ────────────────────────────────────────────
-function DeadlineNotifications() {
-  const [deadlines] = useLocalStorage("home-deadlines", []);
-  const [dismissed, setDismissed] = useLocalStorage("dismissed-deadline-notifs", []);
-
-  const today = new Date(new Date().toDateString());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  // tasks due exactly tomorrow that haven't been dismissed today
-  const urgent = deadlines.filter(d => {
-    if (!d.date) return false;
-    const due = new Date(d.date + "T00:00:00");
-    const isTomorrow = due.getTime() === tomorrow.getTime();
-    const dismissKey = `${d.id}-${today.toDateString()}`;
-    return isTomorrow && !dismissed.includes(dismissKey);
-  });
-
-  const dismiss = (id) => {
-    const dismissKey = `${id}-${today.toDateString()}`;
-    setDismissed(prev => [...prev.filter(k => !k.endsWith(today.toDateString())), dismissKey]);
-  };
-
-  if (urgent.length === 0) return null;
-
-  return (
-    <div style={{
-      position: "fixed", top: 24, right: 24, zIndex: 9998,
-      display: "flex", flexDirection: "column", gap: 12,
-      maxWidth: 380,
-    }}>
-      {urgent.map((d, i) => (
-        <div key={d.id} style={{
-          background: "rgba(10,10,10,0.95)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-          border: "1px solid rgba(196,160,96,0.45)",
-          borderLeft: "4px solid #C4A060",
-          borderRadius: 16,
-          padding: "16px 20px",
-          boxShadow: "0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(196,160,96,0.1)",
-          display: "flex", alignItems: "flex-start", gap: 14,
-          animation: "slideInRight 0.45s cubic-bezier(0.22,1,0.36,1) both",
-          animationDelay: `${i * 0.08}s`,
-        }}>
-          {/* Icon */}
-          <div style={{
-            width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-            background: "rgba(196,160,96,0.15)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18,
-          }}>⏰</div>
-
-          {/* Text */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontFamily: "'Poppins', sans-serif", fontSize: 11,
-              color: "#C4A060", fontWeight: 600, letterSpacing: "1px",
-              textTransform: "uppercase", marginBottom: 4,
-            }}>Due Tomorrow</div>
-            <div style={{
-              fontFamily: "'Poppins', sans-serif", fontSize: 14,
-              color: "#FFFFFF", fontWeight: 600, lineHeight: 1.4,
-              wordBreak: "break-word",
-            }}>{d.task}</div>
-            <div style={{
-              fontFamily: "'Poppins', sans-serif", fontSize: 12,
-              color: "rgba(255,255,255,0.45)", marginTop: 4,
-            }}>
-              {new Date(d.date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-            </div>
-          </div>
-
-          {/* Dismiss × */}
-          <button onClick={() => dismiss(d.id)} style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: "rgba(255,255,255,0.3)", fontSize: 20,
-            lineHeight: 1, padding: "0 2px", flexShrink: 0,
-            transition: "color 0.2s",
-            fontFamily: "'Poppins', sans-serif",
-          }}
-            onMouseEnter={e => e.currentTarget.style.color = "#E8906A"}
-            onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
-          >×</button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── APP ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [loaded, setLoaded] = useState(false);
@@ -1807,7 +1137,6 @@ export default function App() {
   return (
     <>
       <SplineBackground />
-      <DeadlineNotifications />
       <div style={{ background: "transparent", minHeight: "100vh", width: "100%", boxSizing: "border-box", position: "relative", zIndex: 1 }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
@@ -1821,12 +1150,7 @@ export default function App() {
           a { font-family: 'Poppins', sans-serif; }
           textarea::placeholder { color: rgba(245,240,232,0.2); font-style: italic; }
           textarea:focus { color: rgba(245,240,232,0.7); }
-          input::placeholder { color: rgba(245,240,232,0.25); }
           @media (max-width: 920px) { .two-col { grid-template-columns: 1fr !important; } }
-          @keyframes slideInRight {
-            from { opacity: 0; transform: translateX(40px) scale(0.96); }
-            to   { opacity: 1; transform: translateX(0) scale(1); }
-          }
         `}</style>
 
         {!loaded && <LoadingScreen onDone={() => setLoaded(true)} />}
@@ -1836,7 +1160,7 @@ export default function App() {
           {page !== "home" && (
             <div style={{
               position: "sticky", top: 0, zIndex: 100,
-              background: "rgba(14,14,14,0.85)",
+              background: "rgba(6,6,6,0.92)",
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               padding: "15px 0", marginBottom: 0,
@@ -1856,7 +1180,7 @@ export default function App() {
                       background: page === item.id ? "rgba(255,255,255,0.09)" : "none",
                       border: "none", cursor: "pointer",
                       fontFamily: "'Poppins', sans-serif",
-                      fontSize: 12, color: page === item.id ? "#F5F0E8" : "rgba(245,240,232,0.35)",
+                      fontSize: 12, color: page === item.id ? "#F5F0E8" : "rgba(245,240,232,0.65)",
                       padding: "5px 12px", borderRadius: 8,
                       fontWeight: page === item.id ? 600 : 400,
                       transition: "all 0.2s",
