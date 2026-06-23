@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 const SplineBackground = () => (
   <div style={{
     position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
@@ -139,17 +138,32 @@ const glass = {
 };
 
 // ─── HOOKS ───────────────────────────────────────────────────────────────────
-// NOTE: Artifacts in claude.ai cannot use localStorage/sessionStorage — it throws
-// and breaks the whole app. This hook keeps the same API (get/set, persists for
-// the session) but stores everything in memory via React state instead.
-// If you deploy this code outside of Claude (your own site/build), you can swap
-// the body back to real localStorage calls if you want persistence across reloads.
 function useLocalStorage(key, init) {
-  const [val, setVal] = useState(init);
+  const [val, setVal] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored === null) return init;
+      return JSON.parse(stored);
+    } catch { return init; }
+  });
 
   const set = useCallback((value) => {
-    setVal((prev) => (typeof value === "function" ? value(prev) : value));
-  }, []);
+    setVal((prev) => {
+      const next = typeof value === "function" ? value(prev) : value;
+      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [key]);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== key) return;
+      if (e.newValue === null) { setVal(init); return; }
+      try { setVal(JSON.parse(e.newValue)); } catch {}
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [key]);
 
   return [val, set];
 }
@@ -296,7 +310,7 @@ function CardTitle({ children, accent }) {
   );
 }
 
-// ─── HOME NAV ITEMS ───────────────────────────────────────────────────────────
+// ─── HOME ─────────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { id: "profile",       label: "My Profile",       sub: "About · Stats · Interests",    icon: "◉", idx: 0 },
   { id: "dsa",           label: "DSA Progress",      sub: "474 problems · 12 topics",     icon: "⌘", idx: 1 },
@@ -404,7 +418,7 @@ function NotesBox() {
           </button>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {notes.map((note) => (
+            {notes.map((note, i) => (
               <div key={note.id} style={{
                 display: "flex", alignItems: "flex-start", gap: 10,
                 background: "rgba(255,255,255,0.05)", borderRadius: 12,
@@ -790,108 +804,91 @@ function DeadlineBox() {
   );
 }
 
-// ─── DEADLINE NOTIFICATIONS (single source of truth) ─────────────────────────
-// Fixed toast in the top-right corner, shown on every page, alerting about
-// deadlines due today or tomorrow. There used to be two functions with this
-// exact name in the file (one inline banner version, one toast version) —
-// duplicate declarations silently shadow each other in JS, so only one ever
-// actually ran. This is now the single, working version.
+// ─── DEADLINE NOTIFICATIONS ───────────────────────────────────────────────────
 function DeadlineNotifications() {
   const [deadlines] = useLocalStorage("home-deadlines", []);
-  const [dismissed, setDismissed] = useLocalStorage("dismissed-deadline-notifs", []);
+  const [dismissed, setDismissed] = useLocalStorage("dismissed-notifications", []);
 
   const today = new Date(new Date().toDateString());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  // tasks due today or tomorrow that haven't been dismissed today
-  const urgent = deadlines.filter(d => {
+  const dueTomorrow = deadlines.filter(d => {
     if (!d.date) return false;
-    const due = new Date(d.date + "T00:00:00");
-    const isTodayOrTomorrow = due.getTime() === today.getTime() || due.getTime() === tomorrow.getTime();
-    const dismissKey = `${d.id}-${today.toDateString()}`;
-    return isTodayOrTomorrow && !dismissed.includes(dismissKey);
+    const diff = (new Date(d.date + "T00:00:00") - today) / (1000 * 60 * 60 * 24);
+    return diff >= 0 && diff <= 1 && !dismissed.includes(`${d.id}-${d.date}`);
   });
 
-  const dismiss = (id) => {
-    const dismissKey = `${id}-${today.toDateString()}`;
-    setDismissed(prev => [...prev, dismissKey]);
+  const dismiss = (d) => {
+    setDismissed(prev => [...prev, `${d.id}-${d.date}`]);
   };
 
-  if (urgent.length === 0) return null;
+  if (dueTomorrow.length === 0) return null;
 
   return (
-    <div style={{
-      position: "fixed", top: 24, right: 24, zIndex: 9998,
-      display: "flex", flexDirection: "column", gap: 12,
-      maxWidth: 380,
-    }}>
-      <style>{`
-        @keyframes slideInRight {
-          from { opacity: 0; transform: translateX(40px) scale(0.96); }
-          to   { opacity: 1; transform: translateX(0) scale(1); }
-        }
-      `}</style>
-      {urgent.map((d, i) => {
-        const due = new Date(d.date + "T00:00:00");
-        const isToday = due.getTime() === today.getTime();
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
+      {dueTomorrow.map((d, i) => {
+        const isToday = (new Date(d.date + "T00:00:00") - today) === 0;
         const accent = isToday ? "#E8906A" : "#C4A060";
+        const bg = isToday ? "rgba(232,144,106,0.13)" : "rgba(196,160,96,0.13)";
+        const border = isToday ? "1px solid rgba(232,144,106,0.35)" : "1px solid rgba(196,160,96,0.35)";
         return (
-          <div key={d.id} style={{
-            background: "rgba(10,10,10,0.95)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            border: `1px solid ${accent}73`,
-            borderLeft: `4px solid ${accent}`,
-            borderRadius: 16,
-            padding: "16px 20px",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.7)",
-            display: "flex", alignItems: "flex-start", gap: 14,
-            animation: "slideInRight 0.45s cubic-bezier(0.22,1,0.36,1) both",
-            animationDelay: `${i * 0.08}s`,
-          }}>
-            {/* Icon */}
-            <div style={{
-              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-              background: `${accent}26`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18,
-            }}>{isToday ? "🔴" : "⏰"}</div>
-
-            {/* Text */}
-            <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            key={d.id}
+            style={{
+              display: "flex", alignItems: "center", gap: 14,
+              background: bg,
+              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+              border, borderLeft: `4px solid ${accent}`,
+              borderRadius: 16, padding: "16px 20px",
+              animation: `slideInNotif 0.5s cubic-bezier(0.22,1,0.36,1) ${i * 0.08}s both`,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+            }}
+          >
+            <span style={{ fontSize: 22, flexShrink: 0 }}>{isToday ? "🔴" : "🟡"}</span>
+            <div style={{ flex: 1 }}>
               <div style={{
-                fontFamily: "'Poppins', sans-serif", fontSize: 11,
-                color: accent, fontWeight: 600, letterSpacing: "1px",
-                textTransform: "uppercase", marginBottom: 4,
-              }}>{isToday ? "Due Today" : "Due Tomorrow"}</div>
+                fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 600,
+                color: accent, marginBottom: 2,
+              }}>
+                {isToday ? "Due Today" : "Due Tomorrow"}
+              </div>
               <div style={{
                 fontFamily: "'Poppins', sans-serif", fontSize: 14,
-                color: "#FFFFFF", fontWeight: 600, lineHeight: 1.4,
-                wordBreak: "break-word",
-              }}>{d.task}</div>
-              <div style={{
-                fontFamily: "'Poppins', sans-serif", fontSize: 12,
-                color: "rgba(255,255,255,0.45)", marginTop: 4,
+                color: "rgba(255,255,255,0.88)", fontWeight: 500, lineHeight: 1.4,
               }}>
-                {due.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                {d.task}
               </div>
+              {d.date && (
+                <div style={{
+                  fontFamily: "'Poppins', sans-serif", fontSize: 11,
+                  color: "rgba(255,255,255,0.40)", marginTop: 3,
+                }}>
+                  {new Date(d.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+                </div>
+              )}
             </div>
-
-            {/* Dismiss × */}
-            <button onClick={() => dismiss(d.id)} style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "rgba(255,255,255,0.3)", fontSize: 20,
-              lineHeight: 1, padding: "0 2px", flexShrink: 0,
-              transition: "color 0.2s",
-              fontFamily: "'Poppins', sans-serif",
-            }}
-              onMouseEnter={e => e.currentTarget.style.color = "#E8906A"}
-              onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
+            <button
+              onClick={() => dismiss(d)}
+              style={{
+                background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "50%", width: 28, height: 28,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: "rgba(255,255,255,0.45)", fontSize: 16,
+                flexShrink: 0, transition: "all 0.2s", fontFamily: "'Poppins', sans-serif",
+                lineHeight: 1,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,100,74,0.25)"; e.currentTarget.style.color = "#E8906A"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
+              title="Dismiss"
             >×</button>
           </div>
         );
       })}
+      <style>{`
+        @keyframes slideInNotif {
+          from { opacity: 0; transform: translateY(-12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -903,6 +900,7 @@ function Home({ navigate }) {
 
   return (
     <div>
+      <DeadlineNotifications />
       <div style={{ minHeight: "56vh", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: 72, paddingTop: 88 }}>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(20px)", transition: "all 1s ease 0.1s" }}>
           <span style={{
@@ -1102,7 +1100,9 @@ function StatusBox({ states, value, onChange }) {
 }
 
 function DSAPage({ onBack }) {
+  const [expanded, setExpanded] = useLocalStorage("dsa-expanded", {});
   const [statuses, setStatuses] = useLocalStorage("dsa-statuses", {});
+  const toggle = (name) => setExpanded(p => ({ ...p, [name]: !p[name] }));
   const setStatus = (topic, field, val) => setStatuses(p => ({ ...p, [`${topic}::${field}`]: val }));
   const getStatus = (topic, field, states) => statuses[`${topic}::${field}`] || states[0];
   const color = P.cards[1];
@@ -1124,7 +1124,12 @@ function DSAPage({ onBack }) {
             {CONFIG.dsa.topics.map(t => (
               <div key={t.name} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 15, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div style={{ width: "100%", padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 14, color: "#F5F0E8", minWidth: 220 }}>{t.name}</span>
+                  <button onClick={() => toggle(t.name)} style={{
+                    background: "none", border: "none", cursor: "pointer", padding: 0,
+                    display: "flex", alignItems: "center", gap: 12, flex: 1, textAlign: "left",
+                  }}>
+                    <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 14, color: "#F5F0E8", minWidth: 220 }}>{t.name}</span>
+                  </button>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {[
                       { label: "Easy",   field: "easy",     states: EMH_STATES, c: "#6ABB7A" },
@@ -1687,6 +1692,96 @@ function ResourcesPage({ onBack }) {
   );
 }
 
+// ─── DEADLINE NOTIFICATION BANNER ────────────────────────────────────────────
+function DeadlineNotifications() {
+  const [deadlines] = useLocalStorage("home-deadlines", []);
+  const [dismissed, setDismissed] = useLocalStorage("dismissed-deadline-notifs", []);
+
+  const today = new Date(new Date().toDateString());
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // tasks due exactly tomorrow that haven't been dismissed today
+  const urgent = deadlines.filter(d => {
+    if (!d.date) return false;
+    const due = new Date(d.date + "T00:00:00");
+    const isTomorrow = due.getTime() === tomorrow.getTime();
+    const dismissKey = `${d.id}-${today.toDateString()}`;
+    return isTomorrow && !dismissed.includes(dismissKey);
+  });
+
+  const dismiss = (id) => {
+    const dismissKey = `${id}-${today.toDateString()}`;
+    setDismissed(prev => [...prev.filter(k => !k.endsWith(today.toDateString())), dismissKey]);
+  };
+
+  if (urgent.length === 0) return null;
+
+  return (
+    <div style={{
+      position: "fixed", top: 24, right: 24, zIndex: 9998,
+      display: "flex", flexDirection: "column", gap: 12,
+      maxWidth: 380,
+    }}>
+      {urgent.map((d, i) => (
+        <div key={d.id} style={{
+          background: "rgba(10,10,10,0.95)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          border: "1px solid rgba(196,160,96,0.45)",
+          borderLeft: "4px solid #C4A060",
+          borderRadius: 16,
+          padding: "16px 20px",
+          boxShadow: "0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(196,160,96,0.1)",
+          display: "flex", alignItems: "flex-start", gap: 14,
+          animation: "slideInRight 0.45s cubic-bezier(0.22,1,0.36,1) both",
+          animationDelay: `${i * 0.08}s`,
+        }}>
+          {/* Icon */}
+          <div style={{
+            width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+            background: "rgba(196,160,96,0.15)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 18,
+          }}>⏰</div>
+
+          {/* Text */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: "'Poppins', sans-serif", fontSize: 11,
+              color: "#C4A060", fontWeight: 600, letterSpacing: "1px",
+              textTransform: "uppercase", marginBottom: 4,
+            }}>Due Tomorrow</div>
+            <div style={{
+              fontFamily: "'Poppins', sans-serif", fontSize: 14,
+              color: "#FFFFFF", fontWeight: 600, lineHeight: 1.4,
+              wordBreak: "break-word",
+            }}>{d.task}</div>
+            <div style={{
+              fontFamily: "'Poppins', sans-serif", fontSize: 12,
+              color: "rgba(255,255,255,0.45)", marginTop: 4,
+            }}>
+              {new Date(d.date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+            </div>
+          </div>
+
+          {/* Dismiss × */}
+          <button onClick={() => dismiss(d.id)} style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "rgba(255,255,255,0.3)", fontSize: 20,
+            lineHeight: 1, padding: "0 2px", flexShrink: 0,
+            transition: "color 0.2s",
+            fontFamily: "'Poppins', sans-serif",
+          }}
+            onMouseEnter={e => e.currentTarget.style.color = "#E8906A"}
+            onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
+          >×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── APP ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [loaded, setLoaded] = useState(false);
@@ -1728,6 +1823,10 @@ export default function App() {
           textarea:focus { color: rgba(245,240,232,0.7); }
           input::placeholder { color: rgba(245,240,232,0.25); }
           @media (max-width: 920px) { .two-col { grid-template-columns: 1fr !important; } }
+          @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(40px) scale(0.96); }
+            to   { opacity: 1; transform: translateX(0) scale(1); }
+          }
         `}</style>
 
         {!loaded && <LoadingScreen onDone={() => setLoaded(true)} />}
