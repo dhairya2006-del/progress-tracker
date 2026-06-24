@@ -420,7 +420,7 @@ function DailyTargetBox() {
   const today = new Date();
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const [selectedDate, setSelectedDate] = useState(fmt(tomorrow));
+  const [selectedDate, setSelectedDate] = useState(fmt(today));
 
   // Parse date to calendar key format: "YYYY-M-D"
   const toCalKey = (dateStr) => {
