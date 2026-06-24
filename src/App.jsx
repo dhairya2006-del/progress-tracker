@@ -413,6 +413,7 @@ function QuickLinksBox() {
 // ─── DAILY TARGET BOX ────────────────────────────────────────────────────────
 function DailyTargetBox() {
   const [calNotes, setCalNotes] = useLocalStorage("calendar-notes", {});
+  const [calMarks, setCalMarks] = useLocalStorage("calendar-marks", {});
   const accent = "#5C9A5C";
 
   // Date picker: default = tomorrow
@@ -429,9 +430,23 @@ function DailyTargetBox() {
 
   const calKey = toCalKey(selectedDate);
   const currentValue = calNotes[calKey] || "";
+  const currentMark = calMarks[calKey]; // "tick" | "cross" | undefined
 
   const updateTarget = (val) => {
     setCalNotes(p => ({ ...p, [calKey]: val }));
+  };
+
+  // Same tick → cross → unmark cycle as the Study Calendar's day cells, writing
+  // to the exact same "calendar-marks" key — so marking it here is identical to
+  // marking that day directly on the calendar.
+  const cycleMark = () => {
+    setCalMarks(p => {
+      const n = { ...p };
+      if (!n[calKey]) n[calKey] = "tick";
+      else if (n[calKey] === "tick") n[calKey] = "cross";
+      else delete n[calKey];
+      return n;
+    });
   };
 
   const shiftDate = (dir) => {
@@ -445,11 +460,17 @@ function DailyTargetBox() {
   const isTomorrow = selectedDate === fmt(tomorrow);
   const dateLabel = isToday ? "Today" : isTomorrow ? "Tomorrow" : displayDate;
 
+  const markStyle = currentMark === "tick"
+    ? { bg: "rgba(74,154,74,0.18)", border: "rgba(74,154,74,0.45)", color: "#6ABB7A", label: "Done" }
+    : currentMark === "cross"
+    ? { bg: "rgba(232,144,106,0.18)", border: "rgba(232,144,106,0.45)", color: "#E8906A", label: "Not done" }
+    : { bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.16)", color: "rgba(255,255,255,0.5)", label: "Unmarked" };
+
   return (
     <HoverBox icon="🎯" title="Daily Target" subtitle={`Set goals for ${dateLabel} · Saved to calendar`} accent={accent} centered>
       <div style={{ marginTop: 18 }}>
         {/* Date navigator */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
           <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Date</span>
           <button onClick={() => shiftDate(-1)} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "rgba(255,255,255,0.6)", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
             onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.14)"}
@@ -461,6 +482,19 @@ function DailyTargetBox() {
             onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.07)"}
           >›</button>
           <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, color: accent, fontWeight: 600 }}>{dateLabel}</span>
+
+          {/* Tick / cross / unmark toggle — writes straight into calendar-marks
+              using the same key + cycle as clicking the day on the Study Calendar. */}
+          <button
+            onClick={cycleMark}
+            title="Click to cycle: unmarked → done → not done → unmarked"
+            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, background: markStyle.bg, border: `1.5px solid ${markStyle.border}`, borderRadius: 20, padding: "6px 14px 6px 8px", cursor: "pointer", transition: "all 0.2s ease" }}
+          >
+            <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, background: currentMark === "tick" ? "#4A7A4A" : currentMark === "cross" ? "#C4714A" : "transparent", border: currentMark === "tick" ? "2px solid #4A7A4A" : currentMark === "cross" ? "2px solid #C4714A" : "1.5px solid rgba(255,255,255,0.3)", color: currentMark ? "#FFF" : "rgba(255,255,255,0.4)" }}>
+              {currentMark === "tick" ? "✓" : currentMark === "cross" ? "✗" : "·"}
+            </span>
+            <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, fontWeight: 600, color: markStyle.color }}>{markStyle.label}</span>
+          </button>
         </div>
         <textarea
           value={currentValue}
@@ -618,7 +652,7 @@ function Home({ navigate }) {
       {/* Hero */}
       <div style={{ minHeight: "56vh", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: 72, paddingTop: 88 }}>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(20px)", transition: "all 1s ease 0.1s" }}>
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, letterSpacing: "3px", textTransform: "uppercase", color: "#5C9A5C", background: "rgba(92,154,92,0.12)", border: "1px solid rgba(92,154,92,0.22)", padding: "5px 14px", borderRadius: 20, display: "inline-block", marginBottom: 26, fontWeight: 500 }}>Progressing · 2026–27</span>
+          <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, letterSpacing: "3px", textTransform: "uppercase", color: "#5C9A5C", background: "rgba(92,154,92,0.12)", border: "1px solid rgba(92,154,92,0.22)", padding: "5px 14px", borderRadius: 20, display: "inline-block", marginBottom: 26, fontWeight: 500 }}>Progressing · 2025–26</span>
         </div>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(28px)", transition: "all 1s ease 0.2s" }}>
           <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(64px,7.5vw,110px)", fontWeight: 600, color: "#F5F0E8", margin: 0, lineHeight: 1.0, letterSpacing: "-3px" }}>{CONFIG.profile.name}</h1>
