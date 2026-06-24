@@ -652,7 +652,7 @@ function Home({ navigate }) {
       {/* Hero */}
       <div style={{ minHeight: "56vh", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: 72, paddingTop: 88 }}>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(20px)", transition: "all 1s ease 0.1s" }}>
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, letterSpacing: "3px", textTransform: "uppercase", color: "#5C9A5C", background: "rgba(92,154,92,0.12)", border: "1px solid rgba(92,154,92,0.22)", padding: "5px 14px", borderRadius: 20, display: "inline-block", marginBottom: 26, fontWeight: 500 }}>Progressing · 2025–26</span>
+          <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, letterSpacing: "3px", textTransform: "uppercase", color: "#5C9A5C", background: "rgba(92,154,92,0.12)", border: "1px solid rgba(92,154,92,0.22)", padding: "5px 14px", borderRadius: 20, display: "inline-block", marginBottom: 26, fontWeight: 500 }}>Progressing · 2026–27</span>
         </div>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(28px)", transition: "all 1s ease 0.2s" }}>
           <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(64px,7.5vw,110px)", fontWeight: 600, color: "#F5F0E8", margin: 0, lineHeight: 1.0, letterSpacing: "-3px" }}>{CONFIG.profile.name}</h1>
