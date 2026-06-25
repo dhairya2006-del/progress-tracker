@@ -1,11 +1,216 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import Spline from '@splinetool/react-spline';
 
-const SplineBackground = () => (
-  <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "#141414" }}>
-    <Spline scene="https://prod.spline.design/Slk6b8kz3LRlKiyk/scene.splinecode" style={{ width: "100%", height: "100%" }} />
-  </div>
-);
+// ─── PARTICLE BACKGROUND ─────────────────────────────────────────────────────
+// Replaces the old Spline (WebGL) background. A field of drifting, colored
+// dots on a single 2D canvas, with a faint line drawn between dots that are
+// close to each other, and dots gently pushed away from the cursor. No
+// external library, no network fetch for a remote scene file.
+function ParticleBackground() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    // Cap device pixel ratio so very high-DPI screens don't force the canvas
+    // to render at an unnecessarily large internal resolution.
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    let width = 0, height = 0;
+    let particles = [];
+    let rafId = null;
+    let running = true;
+    // Mouse position in CSS pixels, relative to the viewport (matches particle
+    // coordinates, which are also in CSS pixels — the dpr scale is applied to
+    // the canvas context itself via setTransform, not to these coordinates).
+    // null when the cursor isn't over the page / hasn't moved yet.
+    const mouse = { x: null, y: null };
+
+    // Roughly one particle per ~2,300px² of screen — triple the previous
+    // density — clamped so it stays reasonable on very large or very small
+    // screens. At this density the line-drawing pass below uses a spatial
+    // grid instead of checking every pair, since a brute-force check across
+    // ~400 particles would be ~9x the cost of the previous version per frame.
+    const particleCountFor = (w, h) => Math.max(180, Math.min(420, Math.round((w * h) / 2300)));
+
+    const COLORS = [
+      "73,144,226",   // blue
+      "224,90,90",    // red
+      "230,150,60",   // orange
+      "100,190,110",  // green
+      "224,200,80",   // yellow
+      "245,240,232",  // white
+      "170,110,210",  // purple
+    ];
+
+    const makeParticle = () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.18,
+      vy: (Math.random() - 0.5) * 0.18,
+      r: Math.random() * 1.4 + 0.6,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    });
+
+    const resize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const target = particleCountFor(width, height);
+      if (particles.length === 0) {
+        particles = Array.from({ length: target }, makeParticle);
+      } else if (particles.length < target) {
+        particles = particles.concat(Array.from({ length: target - particles.length }, makeParticle));
+      } else if (particles.length > target) {
+        particles = particles.slice(0, target);
+      }
+    };
+
+    const LINK_DIST = 90;
+    // How far the cursor's influence reaches, and how strongly it pushes.
+    const REPEL_DIST = 110;
+    const REPEL_STRENGTH = 1.6;
+
+    // Spatial grid for the line-drawing pass: bucket particles into cells
+    // sized to LINK_DIST, so each particle only ever compares against the
+    // handful of particles in its own + 8 neighboring cells instead of every
+    // other particle on screen. This keeps the cost roughly proportional to
+    // particle count instead of its square, which matters at ~400 particles.
+    const buildGrid = () => {
+      const grid = new Map();
+      const cellSize = LINK_DIST;
+      for (let idx = 0; idx < particles.length; idx++) {
+        const p = particles[idx];
+        const cx = Math.floor(p.x / cellSize);
+        const cy = Math.floor(p.y / cellSize);
+        const key = cx + "," + cy;
+        if (!grid.has(key)) grid.set(key, []);
+        grid.get(key).push(idx);
+      }
+      return { grid, cellSize };
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      for (const p of particles) {
+        // Cursor repulsion: if the particle is within REPEL_DIST of the mouse,
+        // nudge it directly away, stronger the closer it is. This is added on
+        // top of the particle's own drift rather than replacing it, so motion
+        // stays smooth instead of snapping.
+        if (mouse.x !== null && mouse.y !== null) {
+          const dx = p.x - mouse.x;
+          const dy = p.y - mouse.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < REPEL_DIST && dist > 0.0001) {
+            const force = (1 - dist / REPEL_DIST) * REPEL_STRENGTH;
+            p.x += (dx / dist) * force;
+            p.y += (dy / dist) * force;
+          }
+        }
+
+        p.x += p.vx;
+        p.y += p.vy;
+        // Wrap around the edges instead of bouncing, so motion stays smooth
+        // and particles never pile up or vanish off-screen.
+        if (p.x < -10) p.x = width + 10;
+        else if (p.x > width + 10) p.x = -10;
+        if (p.y < -10) p.y = height + 10;
+        else if (p.y > height + 10) p.y = -10;
+      }
+
+      // Faint connecting lines between nearby particles (the "network" look),
+      // found via the spatial grid rather than an all-pairs check.
+      const { grid, cellSize } = buildGrid();
+      ctx.lineWidth = 1;
+      const seen = new Set();
+      for (let i = 0; i < particles.length; i++) {
+        const p1 = particles[i];
+        const cx = Math.floor(p1.x / cellSize);
+        const cy = Math.floor(p1.y / cellSize);
+        for (let ox = -1; ox <= 1; ox++) {
+          for (let oy = -1; oy <= 1; oy++) {
+            const neighbors = grid.get((cx + ox) + "," + (cy + oy));
+            if (!neighbors) continue;
+            for (const j of neighbors) {
+              if (j <= i) continue; // each unordered pair only once
+              const pairKey = i + "_" + j;
+              if (seen.has(pairKey)) continue;
+              seen.add(pairKey);
+              const p2 = particles[j];
+              const dx = p1.x - p2.x;
+              const dy = p1.y - p2.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < LINK_DIST) {
+                ctx.strokeStyle = `rgba(${p1.color},${(1 - dist / LINK_DIST) * 0.18})`;
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+              }
+            }
+          }
+        }
+      }
+
+      for (const p of particles) {
+        ctx.fillStyle = `rgba(${p.color},0.55)`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (running) rafId = requestAnimationFrame(draw);
+    };
+
+    // Pause entirely when the tab isn't visible, so it costs nothing while
+    // you're in another tab or the window is minimized.
+    const handleVisibility = () => {
+      running = !document.hidden;
+      if (running && rafId === null) {
+        rafId = requestAnimationFrame(draw);
+      }
+    };
+
+    // Tracked on window (not the canvas) since the canvas has pointer-events
+    // disabled so clicks pass through to the real UI on top of it — window
+    // still receives mousemove regardless of pointer-events on any element.
+    const handleMouseMove = (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    };
+    const handleMouseLeave = () => {
+      mouse.x = null;
+      mouse.y = null;
+    };
+
+    resize();
+    rafId = requestAnimationFrame(draw);
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      running = false;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, []);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "#141414" }}>
+      <canvas ref={canvasRef} style={{ display: "block" }} />
+    </div>
+  );
+}
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 const CONFIG = {
@@ -420,7 +625,7 @@ function DailyTargetBox() {
   const today = new Date();
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const [selectedDate, setSelectedDate] = useState(fmt(today));
+  const [selectedDate, setSelectedDate] = useState(fmt(tomorrow));
 
   // Parse date to calendar key format: "YYYY-M-D"
   const toCalKey = (dateStr) => {
@@ -652,7 +857,7 @@ function Home({ navigate }) {
       {/* Hero */}
       <div style={{ minHeight: "56vh", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: 72, paddingTop: 88 }}>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(20px)", transition: "all 1s ease 0.1s" }}>
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, letterSpacing: "3px", textTransform: "uppercase", color: "#5C9A5C", background: "rgba(92,154,92,0.12)", border: "1px solid rgba(92,154,92,0.22)", padding: "5px 14px", borderRadius: 20, display: "inline-block", marginBottom: 26, fontWeight: 500 }}>Progressing · 2026–27</span>
+          <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, letterSpacing: "3px", textTransform: "uppercase", color: "#5C9A5C", background: "rgba(92,154,92,0.12)", border: "1px solid rgba(92,154,92,0.22)", padding: "5px 14px", borderRadius: 20, display: "inline-block", marginBottom: 26, fontWeight: 500 }}>Progressing · 2025–26</span>
         </div>
         <div style={{ opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(28px)", transition: "all 1s ease 0.2s" }}>
           <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(64px,7.5vw,110px)", fontWeight: 600, color: "#F5F0E8", margin: 0, lineHeight: 1.0, letterSpacing: "-3px" }}>{CONFIG.profile.name}</h1>
@@ -1271,7 +1476,7 @@ export default function App() {
   };
   return (
     <>
-      <SplineBackground />
+      <ParticleBackground />
       <div style={{ background: "transparent", minHeight: "100vh", width: "100%", boxSizing: "border-box", position: "relative", zIndex: 1 }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
