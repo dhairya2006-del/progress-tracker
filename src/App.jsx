@@ -493,89 +493,103 @@ function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
   const [draft, setDraft] = useState(note || "");
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const dotRef = useRef(null);
-  const timer = useRef(null);
 
   useEffect(() => { setDraft(note || ""); }, [note]);
 
-  const open = () => {
-    clearTimeout(timer.current);
-    setDraft(note || "");
+  useEffect(() => {
+    if (!show) return;
+    const handler = (e) => {
+      if (dotRef.current && !dotRef.current.closest("[data-notepopup]") && !e.target.closest("[data-notepopup]")) {
+        setShow(false);
+      }
+    };
+    setTimeout(() => document.addEventListener("mousedown", handler), 0);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [show]);
+
+  const toggle = () => {
+    if (show) { setShow(false); return; }
     if (dotRef.current) {
       const rect = dotRef.current.getBoundingClientRect();
       setPos({ top: rect.top + window.scrollY, left: rect.right + 10 });
     }
+    setDraft(note || "");
     setShow(true);
   };
-  const close = () => { timer.current = setTimeout(() => setShow(false), 180); };
+
   const save = () => { onSave(draft); setShow(false); };
   const hasNote = !!(note && note.trim());
 
   return (
-    <div
-      onMouseEnter={open}
-      onMouseLeave={close}
-      style={{ position: "absolute", top, left, zIndex: show ? 9999 : 5, display: "flex", alignItems: "center" }}
-    >
-      <div ref={dotRef} style={{
-        width: 14, height: 14, borderRadius: "50%", cursor: "pointer",
-        background: hasNote ? `${accent}33` : "rgba(255,255,255,0.06)",
-        border: `1.5px solid ${hasNote ? accent : "rgba(255,255,255,0.18)"}`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        transition: "all 0.18s", flexShrink: 0,
-      }}>
+    <div style={{ position: "absolute", top, left, zIndex: show ? 9999 : 5, display: "flex", alignItems: "center" }}>
+      <div
+        ref={dotRef}
+        onClick={toggle}
+        style={{
+          width: 14, height: 14, borderRadius: "50%", cursor: "pointer",
+          background: hasNote ? `${accent}33` : "rgba(255,255,255,0.06)",
+          border: `1.5px solid ${hasNote ? accent : "rgba(255,255,255,0.18)"}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.18s", flexShrink: 0,
+        }}
+      >
         <span style={{ fontSize: 7, color: hasNote ? accent : "rgba(255,255,255,0.35)", lineHeight: 1, fontWeight: 700 }}>
           {hasNote ? "✎" : "·"}
         </span>
       </div>
 
-      {show && typeof document !== "undefined" && (() => {
-        const popupWidth = Math.min(600, window.innerWidth * 0.5);
-        return ReactDOM.createPortal(
-          <div
-            onMouseEnter={() => clearTimeout(timer.current)}
-            onMouseLeave={close}
-            style={{
-              position: "absolute",
-              top: pos.top,
-              left: pos.left,
-              zIndex: 99999,
-              width: popupWidth,
-              background: "rgba(12,12,20,0.98)",
-              border: `1px solid rgba(255,255,255,0.12)`,
-              borderLeft: `3px solid ${accent}`,
-              borderRadius: 12,
-              padding: "12px 14px",
-              boxShadow: "0 20px 50px rgba(0,0,0,0.8)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
+      {show && typeof document !== "undefined" && ReactDOM.createPortal(
+        <div
+          data-notepopup="true"
+          style={{
+            position: "absolute",
+            top: pos.top,
+            left: pos.left,
+            zIndex: 99999,
+            width: Math.min(600, window.innerWidth * 0.5),
+            background: "rgba(12,12,20,0.98)",
+            border: `1px solid rgba(255,255,255,0.12)`,
+            borderLeft: `3px solid ${accent}`,
+            borderRadius: 12,
+            padding: "12px 14px",
+            boxShadow: "0 20px 50px rgba(0,0,0,0.8)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+          }}
+        >
+          <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 10, color: accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8 }}>
+            Line Note <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>· Enter to save · Shift+Enter for new line</span>
+          </div>
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={e => {
+              setDraft(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
             }}
-          >
-            <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 10, color: accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8 }}>Line Note</div>
-            <textarea
-              autoFocus
-              value={draft}
-              onChange={e => {
-                setDraft(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = e.target.scrollHeight + "px";
-              }}
-              ref={el => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
-              placeholder="Explain this line…"
-              style={{
-                width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)",
-                borderRadius: 8, padding: "8px 10px", fontFamily: "'Poppins',sans-serif", fontSize: 12,
-                color: "#FFFFFF", outline: "none", resize: "none", lineHeight: 1.6,
-                minHeight: 72, overflow: "hidden", display: "block",
-              }}
-            />
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <button onClick={save} style={{ flex: 1, background: accent, border: "none", borderRadius: 8, padding: "6px 0", fontFamily: "'Poppins',sans-serif", fontSize: 11, fontWeight: 700, color: "#141414", cursor: "pointer" }}>Save</button>
-              <button onClick={() => { onClear(); setShow(false); }} style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "6px 0", fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.5)", cursor: "pointer" }}>Clear</button>
-            </div>
-          </div>,
-          document.body
-        );
-      })()}
+            onKeyDown={e => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                save();
+              }
+            }}
+            ref={el => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+            placeholder="Explain this line… (Enter to save, Shift+Enter for new line)"
+            style={{
+              width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: 8, padding: "8px 10px", fontFamily: "'Poppins',sans-serif", fontSize: 12,
+              color: "#FFFFFF", outline: "none", resize: "none", lineHeight: 1.6,
+              minHeight: 72, overflow: "hidden", display: "block",
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button onClick={save} style={{ flex: 1, background: accent, border: "none", borderRadius: 8, padding: "6px 0", fontFamily: "'Poppins',sans-serif", fontSize: 11, fontWeight: 700, color: "#141414", cursor: "pointer" }}>Save</button>
+            <button onClick={() => { onClear(); setShow(false); }} style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "6px 0", fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.5)", cursor: "pointer" }}>Clear</button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -602,18 +616,20 @@ function NotebookDocument({ page, folderColor }) {
   // is what caused characters to insert in reverse order — so once the user
   // is in the editor, the DOM is the source of truth until they leave it.
   useEffect(() => {
-    const el = editorRef.current;
-    if (!el) return;
-    if (document.activeElement === el) return; // user is actively editing here
-    const domText = el.innerText.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
-    if (domText === text) return;
-    el.innerHTML = "";
-    const parts = text.split("\n");
-    parts.forEach((part, i) => {
-      el.appendChild(document.createTextNode(part));
-      if (i < parts.length - 1) el.appendChild(document.createElement("br"));
-    });
-  }, [text]);
+  const el = editorRef.current;
+  if (!el) return;
+  if (document.activeElement === el) return;
+  el.innerHTML = "";
+  const parts = (text || "\n").split("\n");
+  parts.forEach((part, i) => {
+    el.appendChild(document.createTextNode(part));
+    if (i < parts.length - 1) el.appendChild(document.createElement("br"));
+  });
+  // ensure at least one trailing <br> so the editor always has an empty line
+  if (!el.lastChild || el.lastChild.nodeName !== "BR") {
+    el.appendChild(document.createElement("br"));
+  }
+}, [text]);
 
   const commitText = useCallback((newText) => {
     setContent(p => ({ ...p, text: newText }));
@@ -628,24 +644,76 @@ function NotebookDocument({ page, folderColor }) {
   };
 
   const handlePaste = (e) => {
-    e.preventDefault();
-    const pasted = (e.clipboardData || window.clipboardData).getData("text/plain");
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
-    const lines = pasted.split(/\r\n|\r|\n/);
-    const frag = document.createDocumentFragment();
-    lines.forEach((line, i) => {
-      frag.appendChild(document.createTextNode(line));
-      if (i < lines.length - 1) frag.appendChild(document.createElement("br"));
-    });
-    range.insertNode(frag);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    handleInput();
-  };
+  e.preventDefault();
+
+  // ── Image paste ──────────────────────────────────────────────────────
+  const items = Array.from(e.clipboardData.items || []);
+  const imageItem = items.find(it => it.type.startsWith("image/"));
+  if (imageItem) {
+    const file = imageItem.getAsFile();
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const src = ev.target.result;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+
+      // Wrap in a div so it sits on its own line and is draggable
+      const wrapper = document.createElement("div");
+      wrapper.contentEditable = "false";
+      wrapper.style.cssText = "display:block;margin:10px 0;user-select:none;";
+
+      const img = document.createElement("img");
+      img.src = src;
+      img.style.cssText = `
+        max-width: 100%; max-height: 480px;
+        border-radius: 8px; display: block;
+        border: 1px solid rgba(255,255,255,0.12);
+        cursor: default;
+      `;
+      wrapper.appendChild(img);
+
+      // Insert a <br> before the image if needed
+      const brBefore = document.createElement("br");
+      range.insertNode(brBefore);
+      brBefore.after(wrapper);
+
+      // Move caret to after the image
+      const brAfter = document.createElement("br");
+      wrapper.after(brAfter);
+      const newRange = document.createRange();
+      newRange.setStartAfter(brAfter);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+
+      handleInput();
+      recomputeLines();
+    };
+    reader.readAsDataURL(file);
+    return;
+  }
+
+  // ── Plain text paste ─────────────────────────────────────────────────
+  const pasted = (e.clipboardData || window.clipboardData).getData("text/plain");
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  const lines = pasted.split(/\r\n|\r|\n/);
+  const frag = document.createDocumentFragment();
+  lines.forEach((line, i) => {
+    frag.appendChild(document.createTextNode(line));
+    if (i < lines.length - 1) frag.appendChild(document.createElement("br"));
+  });
+  range.insertNode(frag);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  handleInput();
+};
 
   // Recompute visual line marker positions (start of every wrapped line).
   // Walks the editor's DOM nodes directly (text nodes + <br> elements) so a
