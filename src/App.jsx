@@ -1,5 +1,5 @@
-import ReactDOM from "react-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
+import ReactDOM from "react-dom";
 
 // ─── PARTICLE BACKGROUND ─────────────────────────────────────────────────────
 function ParticleBackground() {
@@ -250,30 +250,40 @@ function CardTitle({ children, accent }) {
   return <h2 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 33, fontWeight: 600, color: "#FFFFFF", marginBottom: 32, letterSpacing: "-0.5px", borderBottom: `2px solid ${accent}`, paddingBottom: 12, display: "inline-block", lineHeight: 1.2 }}>{children}</h2>;
 }
 
-// ─── HOVER EXPAND BOX ─────────────────────────────────────────────────────────
-function HoverBox({ icon, title, subtitle, accent, children, centered = false }) {
-  const [hovered, setHovered] = useState(false);
-  const leaveTimer = useRef(null);
-  const onEnter = () => { clearTimeout(leaveTimer.current); setHovered(true); };
-  const onLeave = () => { leaveTimer.current = setTimeout(() => setHovered(false), 180); };
+// ─── CLICK-TO-OPEN EXPAND BOX (replaces HoverBox) ────────────────────────────
+function ClickBox({ icon, title, subtitle, accent, children, centered = false }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    setTimeout(() => document.addEventListener("mousedown", handler), 0);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
   return (
-    <div onMouseEnter={onEnter} onMouseLeave={onLeave} style={{ position: "relative", zIndex: hovered ? 40 : 1 }}>
-      <div style={{ display: "flex", flexDirection: centered ? "column" : "row", alignItems: centered ? "center" : "flex-start", textAlign: centered ? "center" : "left", gap: 22, padding: "36px 40px", borderRadius: hovered ? "22px 22px 0 0" : 22, background: hovered ? "rgba(10,10,10,0.92)" : "rgba(10,10,10,0.82)", border: "1px solid rgba(255,255,255,0.07)", borderLeft: centered ? "1px solid rgba(255,255,255,0.07)" : `4px solid ${accent}`, borderTop: centered ? `4px solid ${accent}` : "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", transition: "all 0.35s cubic-bezier(0.22,1,0.36,1)", boxShadow: hovered ? "none" : "0 4px 24px rgba(0,0,0,0.4)" }}>
-        <div style={{ width: 52, height: 52, borderRadius: 14, flexShrink: 0, background: hovered ? accent : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: hovered ? "#141414" : accent, transition: "all 0.3s ease", marginTop: centered ? 0 : 2 }}>{icon}</div>
+    <div ref={ref} style={{ position: "relative", zIndex: open ? 40 : 1 }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ display: "flex", flexDirection: centered ? "column" : "row", alignItems: centered ? "center" : "flex-start", textAlign: centered ? "center" : "left", gap: 22, padding: "36px 40px", borderRadius: open ? "22px 22px 0 0" : 22, background: open ? "rgba(10,10,10,0.92)" : "rgba(10,10,10,0.82)", border: "1px solid rgba(255,255,255,0.07)", borderLeft: centered ? "1px solid rgba(255,255,255,0.07)" : `4px solid ${accent}`, borderTop: centered ? `4px solid ${accent}` : "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", transition: "all 0.35s cubic-bezier(0.22,1,0.36,1)", boxShadow: open ? "none" : "0 4px 24px rgba(0,0,0,0.4)", cursor: "pointer" }}>
+        <div style={{ width: 52, height: 52, borderRadius: 14, flexShrink: 0, background: open ? accent : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: open ? "#141414" : accent, transition: "all 0.3s ease", marginTop: centered ? 0 : 2 }}>{icon}</div>
         <div style={{ flex: centered ? "unset" : 1 }}>
           <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 21, fontWeight: 600, color: "#FFFFFF", marginBottom: 7, letterSpacing: "-0.3px", lineHeight: 1.25 }}>{title}</div>
           <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>{subtitle}</div>
         </div>
-        {!centered && <div style={{ fontSize: 20, color: accent, opacity: hovered ? 1 : 0, transform: hovered ? "translateX(0)" : "translateX(-8px)", transition: "all 0.3s ease", alignSelf: "center" }}>→</div>}
+        {!centered && <div style={{ fontSize: 20, color: accent, opacity: open ? 1 : 0.4, transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "all 0.3s ease", alignSelf: "center" }}>→</div>}
       </div>
-      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, overflowX: "hidden", overflowY: hovered ? "auto" : "hidden", maxHeight: hovered ? "70vh" : "0px", opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none", transition: "max-height 0.45s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease", background: "rgba(10,10,10,0.96)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderLeft: `4px solid ${accent}`, border: hovered ? "1px solid rgba(255,255,255,0.07)" : "none", borderTop: "none", borderRadius: "0 0 22px 22px", boxShadow: hovered ? "0 18px 48px rgba(0,0,0,0.55)" : "none" }}>
+      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, overflowX: "hidden", overflowY: open ? "auto" : "hidden", maxHeight: open ? "70vh" : "0px", opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none", transition: "max-height 0.45s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease", background: "rgba(10,10,10,0.96)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderLeft: `4px solid ${accent}`, border: open ? "1px solid rgba(255,255,255,0.07)" : "none", borderTop: "none", borderRadius: "0 0 22px 22px", boxShadow: open ? "0 18px 48px rgba(0,0,0,0.55)" : "none" }}>
         <div style={{ padding: "0 40px 30px" }}>{children}</div>
       </div>
     </div>
   );
 }
 
-// ─── NOTES BOX (home page widget — quick notes) ───────────────────────────────
+// ─── NOTES BOX ───────────────────────────────────────────────────────────────
 function NotesBox() {
   const [notes, setNotes] = useLocalStorage("home-notes", []);
   const accent = "#9A6AAA";
@@ -281,7 +291,7 @@ function NotesBox() {
   const updateNote = (id, text) => setNotes(p => p.map(n => n.id === id ? { ...n, text } : n));
   const removeNote = (id) => setNotes(p => p.filter(n => n.id !== id));
   return (
-    <HoverBox icon="📝" title="Quick Notes" subtitle={`${notes.length} note${notes.length !== 1 ? "s" : ""} · Hover to expand`} accent={accent}>
+    <ClickBox icon="📝" title="Quick Notes" subtitle={`${notes.length} note${notes.length !== 1 ? "s" : ""} · Click to expand`} accent={accent}>
       <div style={{ marginTop: 18 }}>
         <button onClick={addNote} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(154,106,170,0.15)", border: "1px solid rgba(154,106,170,0.3)", borderRadius: 10, padding: "8px 16px", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: accent, cursor: "pointer", fontWeight: 600, marginBottom: 14, transition: "all 0.2s" }}
           onMouseEnter={e => e.currentTarget.style.background = "rgba(154,106,170,0.28)"}
@@ -298,7 +308,7 @@ function NotesBox() {
           ))}
         </div>
       </div>
-    </HoverBox>
+    </ClickBox>
   );
 }
 
@@ -313,7 +323,7 @@ function DeadlineBox() {
   const isDueSoon = (ds) => { if (!ds) return false; const diff = (new Date(ds + "T00:00:00") - new Date(new Date().toDateString())) / 86400000; return diff >= 0 && diff <= 3; };
   const upcomingCount = deadlines.filter(d => !isOverdue(d.date)).length;
   return (
-    <HoverBox icon="⏰" title="Deadlines" subtitle={`${upcomingCount} upcoming · Hover to expand`} accent={accent}>
+    <ClickBox icon="⏰" title="Deadlines" subtitle={`${upcomingCount} upcoming · Click to expand`} accent={accent}>
       <div style={{ marginTop: 18 }}>
         <div style={{ display: "flex", gap: 10, marginBottom: 18, alignItems: "center", flexWrap: "wrap" }}>
           <input value={newTask} onChange={e => setNewTask(e.target.value)} onKeyDown={e => e.key === "Enter" && addDeadline()} placeholder="Task name…" style={{ flex: 1, minWidth: 120, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10, padding: "9px 14px", fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "#FFFFFF", outline: "none" }} />
@@ -334,7 +344,7 @@ function DeadlineBox() {
           })}
         </div>
       </div>
-    </HoverBox>
+    </ClickBox>
   );
 }
 
@@ -351,7 +361,7 @@ function QuickLinksBox() {
   };
   const remove = (id) => setLinks(p => p.filter(l => l.id !== id));
   return (
-    <HoverBox icon="🔗" title="Quick Links" subtitle={`${links.length} link${links.length !== 1 ? "s" : ""} · Hover to expand`} accent={accent}>
+    <ClickBox icon="🔗" title="Quick Links" subtitle={`${links.length} link${links.length !== 1 ? "s" : ""} · Click to expand`} accent={accent}>
       <div style={{ marginTop: 18 }}>
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
           <input value={newLabel} onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === "Enter" && addLink()} placeholder="Label (e.g. Leetcode)…" style={{ flex: 1, minWidth: 100, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10, padding: "9px 14px", fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "#FFFFFF", outline: "none" }} />
@@ -370,7 +380,7 @@ function QuickLinksBox() {
           ))}
         </div>
       </div>
-    </HoverBox>
+    </ClickBox>
   );
 }
 
@@ -393,15 +403,15 @@ function DailyTargetBox() {
   const dateLabel = isToday ? "Today" : isTomorrow ? "Tomorrow" : displayDate;
   const markStyle = currentMark === "tick" ? { bg: "rgba(74,154,74,0.18)", border: "rgba(74,154,74,0.45)", color: "#6ABB7A", label: "Done" } : currentMark === "cross" ? { bg: "rgba(232,144,106,0.18)", border: "rgba(232,144,106,0.45)", color: "#E8906A", label: "Not done" } : { bg: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.16)", color: "rgba(255,255,255,0.5)", label: "Unmarked" };
   return (
-    <HoverBox icon="🎯" title="Daily Target" subtitle={`Set goals for ${dateLabel} · Saved to calendar`} accent={accent} centered>
+    <ClickBox icon="🎯" title="Daily Target" subtitle={`Set goals for ${dateLabel} · Click to expand`} accent={accent} centered>
       <div style={{ marginTop: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
           <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Date</span>
-          <button onClick={() => shiftDate(-1)} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "rgba(255,255,255,0.6)", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.14)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.07)"}>‹</button>
+          <button onClick={() => shiftDate(-1)} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "rgba(255,255,255,0.6)", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}>‹</button>
           <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10, padding: "7px 12px", fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "#FFFFFF", outline: "none", colorScheme: "dark" }} />
-          <button onClick={() => shiftDate(1)} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "rgba(255,255,255,0.6)", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.14)"} onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.07)"}>›</button>
+          <button onClick={() => shiftDate(1)} style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "rgba(255,255,255,0.6)", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}>›</button>
           <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, color: accent, fontWeight: 600 }}>{dateLabel}</span>
-          <button onClick={cycleMark} title="Click to cycle: unmarked → done → not done → unmarked" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, background: markStyle.bg, border: `1.5px solid ${markStyle.border}`, borderRadius: 20, padding: "6px 14px 6px 8px", cursor: "pointer", transition: "all 0.2s ease" }}>
+          <button onClick={cycleMark} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, background: markStyle.bg, border: `1.5px solid ${markStyle.border}`, borderRadius: 20, padding: "6px 14px 6px 8px", cursor: "pointer", transition: "all 0.2s ease" }}>
             <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, background: currentMark === "tick" ? "#4A7A4A" : currentMark === "cross" ? "#C4714A" : "transparent", border: currentMark === "tick" ? "2px solid #4A7A4A" : currentMark === "cross" ? "2px solid #C4714A" : "1.5px solid rgba(255,255,255,0.3)", color: currentMark ? "#FFF" : "rgba(255,255,255,0.4)" }}>{currentMark === "tick" ? "✓" : currentMark === "cross" ? "✗" : "·"}</span>
             <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, fontWeight: 600, color: markStyle.color }}>{markStyle.label}</span>
           </button>
@@ -412,7 +422,7 @@ function DailyTargetBox() {
           <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: currentValue.length > 180 ? "#E8906A" : "rgba(255,255,255,0.25)" }}>{currentValue.length}/200</span>
         </div>
       </div>
-    </HoverBox>
+    </ClickBox>
   );
 }
 
@@ -471,35 +481,35 @@ function HomeNotifications() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ─── STUDY NOTEBOOKS SYSTEM ─────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
-
-// Storage layout:
-//   notebooks-folders     → [ { id, name, color, createdAt } ]
-//   notebooks-pages-{fid} → [ { id, name, createdAt } ]
-//   notebooks-content-{pid} → { text: string, paraNotes: { [paraIndex]: string } }
 //
-// Each page is now a single free-flowing document (Notion/Docs style), not an
-// array of discrete lines. The document body is one editable surface; pressing
-// Enter creates a new paragraph, and visual-line indicators (note dots) are
-// computed live from how the text actually wraps on screen — they are NOT
-// derived from a stored line array.
+// Storage layout:
+//   notebooks-folders       → [ { id, name, color, createdAt } ]
+//   notebooks-files-{fid}   → [ { id, name, createdAt } ]
+//   notebooks-pages-{fileid}→ [ { id, name, createdAt } ]
+//   notebooks-content-{pid} → { blocks: [ {type:'text'|'image', content:string, note:string} ] }
+//
+// Images are stored as base64 data URLs inside the blocks array so they persist.
 
 const FOLDER_COLORS = [
   "#5C9A5C","#4A9A8A","#9A6AAA","#5A90AA","#C4A060","#E8906A","#C88080","#7AAAC8",
 ];
 
-// ── Visual-line note popup (positioned at the start of a wrapped visual line) ──
-function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
+// ── Line / Image Note Popup (click to open, click outside to close) ───────────
+function LineNotePopup({ note, onSave, onClear, accent, anchorRef }) {
   const [show, setShow] = useState(false);
   const [draft, setDraft] = useState(note || "");
   const [pos, setPos] = useState({ top: 0, left: 0 });
-  const dotRef = useRef(null);
+  const popupRef = useRef(null);
 
   useEffect(() => { setDraft(note || ""); }, [note]);
 
   useEffect(() => {
     if (!show) return;
     const handler = (e) => {
-      if (dotRef.current && !dotRef.current.closest("[data-notepopup]") && !e.target.closest("[data-notepopup]")) {
+      if (
+        popupRef.current && !popupRef.current.contains(e.target) &&
+        anchorRef.current && !anchorRef.current.contains(e.target)
+      ) {
         setShow(false);
       }
     };
@@ -509,8 +519,8 @@ function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
 
   const toggle = () => {
     if (show) { setShow(false); return; }
-    if (dotRef.current) {
-      const rect = dotRef.current.getBoundingClientRect();
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
       setPos({ top: rect.top + window.scrollY, left: rect.right + 10 });
     }
     setDraft(note || "");
@@ -521,9 +531,9 @@ function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
   const hasNote = !!(note && note.trim());
 
   return (
-    <div style={{ position: "absolute", top, left, zIndex: show ? 9999 : 5, display: "flex", alignItems: "center" }}>
+    <>
       <div
-        ref={dotRef}
+        ref={anchorRef}
         onClick={toggle}
         style={{
           width: 14, height: 14, borderRadius: "50%", cursor: "pointer",
@@ -538,9 +548,9 @@ function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
         </span>
       </div>
 
-      {show && typeof document !== "undefined" && ReactDOM.createPortal(
+      {show && ReactDOM.createPortal(
         <div
-          data-notepopup="true"
+          ref={popupRef}
           style={{
             position: "absolute",
             top: pos.top,
@@ -558,7 +568,7 @@ function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
           }}
         >
           <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 10, color: accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8 }}>
-            Line Note <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>· Enter to save · Shift+Enter for new line</span>
+            Note <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>· Enter to save · Shift+Enter for new line</span>
           </div>
           <textarea
             autoFocus
@@ -569,13 +579,10 @@ function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
               e.target.style.height = e.target.scrollHeight + "px";
             }}
             onKeyDown={e => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                save();
-              }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); save(); }
             }}
             ref={el => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
-            placeholder="Explain this line… (Enter to save, Shift+Enter for new line)"
+            placeholder="Write a note… (Enter to save, Shift+Enter for new line)"
             style={{
               width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)",
               borderRadius: 8, padding: "8px 10px", fontFamily: "'Poppins',sans-serif", fontSize: 12,
@@ -590,201 +597,98 @@ function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
         </div>,
         document.body
       )}
+    </>
+  );
+}
+
+// ── Visual line note marker (positioned at left of each wrapped visual line) ──
+function VisualLineNote({ note, onSave, onClear, accent, top, left }) {
+  const anchorRef = useRef(null);
+  return (
+    <div style={{ position: "absolute", top, left, zIndex: 5, display: "flex", alignItems: "center" }}>
+      <LineNotePopup note={note} onSave={onSave} onClear={onClear} accent={accent} anchorRef={anchorRef} />
     </div>
   );
 }
 
-// ── Document Editor (single page = one free-flowing document) ─────────────────
-// Replaces the old line-based editor. Content is stored as one string
-// (paragraphs separated by \n). Visual line start positions are measured live
-// via the DOM (Range.getClientRects) so a note-dot can be placed at the start
-// of every wrapped visual line, without storing lines as discrete records.
+// ── Image block with attached note button ─────────────────────────────────────
+function ImageBlock({ src, note, onNoteChange, onNoteClear, accent }) {
+  const anchorRef = useRef(null);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: "10px 0" }}>
+      {/* Note dot on the left, aligned with top of image */}
+      <div style={{ paddingTop: 6, flexShrink: 0 }}>
+        <LineNotePopup note={note} onSave={onNoteChange} onClear={onNoteClear} accent={accent} anchorRef={anchorRef} />
+      </div>
+      <img
+        src={src}
+        alt="pasted"
+        style={{
+          maxWidth: "calc(100% - 30px)",
+          maxHeight: 480,
+          borderRadius: 8,
+          border: "1px solid rgba(255,255,255,0.12)",
+          display: "block",
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Block-based Document Editor ───────────────────────────────────────────────
+// Each page is stored as an array of blocks: { id, type: 'text'|'image', content, note }
+// Text blocks use a contentEditable div; image blocks show the image with a note dot.
 function NotebookDocument({ page, folderColor }) {
   const storageKey = `notebooks-content-${page.id}`;
-  const [content, setContent] = useLocalStorage(storageKey, { text: "", paraNotes: {} });
-  const text = content.text || "";
-  const paraNotes = content.paraNotes || {};
 
-  const editorRef = useRef(null);
-  const wrapperRef = useRef(null);
-  const [lineMarkers, setLineMarkers] = useState([]); // [{ top, left, paraIndex }]
-  const isComposingRef = useRef(false);
+  // Migrate old format (if content was stored as { text, paraNotes }) to new block format
+  const [blocks, setBlocks] = useLocalStorage(storageKey, null);
 
-  // Keep the contentEditable's DOM in sync with `text` only when it actually
-  // differs AND the editor doesn't currently have focus. Rebuilding the DOM
-  // while the user is actively typing resets the caret to the start, which
-  // is what caused characters to insert in reverse order — so once the user
-  // is in the editor, the DOM is the source of truth until they leave it.
-  useEffect(() => {
-  const el = editorRef.current;
-  if (!el) return;
-  if (document.activeElement === el) return;
-  el.innerHTML = "";
-  const parts = (text || "\n").split("\n");
-  parts.forEach((part, i) => {
-    el.appendChild(document.createTextNode(part));
-    if (i < parts.length - 1) el.appendChild(document.createElement("br"));
-  });
-  // ensure at least one trailing <br> so the editor always has an empty line
-  if (!el.lastChild || el.lastChild.nodeName !== "BR") {
-    el.appendChild(document.createElement("br"));
-  }
-}, [text]);
-
-  const commitText = useCallback((newText) => {
-    setContent(p => ({ ...p, text: newText }));
-  }, [setContent]);
-
-  const handleInput = () => {
-    if (isComposingRef.current) return;
-    const el = editorRef.current;
-    if (!el) return;
-    const raw = el.innerText.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
-    commitText(raw);
-  };
-
-  const handlePaste = (e) => {
-  e.preventDefault();
-
-  // ── Image paste ──────────────────────────────────────────────────────
-  const items = Array.from(e.clipboardData.items || []);
-  const imageItem = items.find(it => it.type.startsWith("image/"));
-  if (imageItem) {
-    const file = imageItem.getAsFile();
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const src = ev.target.result;
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-
-      // Wrap in a div so it sits on its own line and is draggable
-      const wrapper = document.createElement("div");
-      wrapper.contentEditable = "false";
-      wrapper.style.cssText = "display:block;margin:10px 0;user-select:none;";
-
-      const img = document.createElement("img");
-      img.src = src;
-      img.style.cssText = `
-        max-width: 100%; max-height: 480px;
-        border-radius: 8px; display: block;
-        border: 1px solid rgba(255,255,255,0.12);
-        cursor: default;
-      `;
-      wrapper.appendChild(img);
-
-      // Insert a <br> before the image if needed
-      const brBefore = document.createElement("br");
-      range.insertNode(brBefore);
-      brBefore.after(wrapper);
-
-      // Move caret to after the image
-      const brAfter = document.createElement("br");
-      wrapper.after(brAfter);
-      const newRange = document.createRange();
-      newRange.setStartAfter(brAfter);
-      newRange.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-
-      handleInput();
-      recomputeLines();
-    };
-    reader.readAsDataURL(file);
-    return;
-  }
-
-  // ── Plain text paste ─────────────────────────────────────────────────
-  const pasted = (e.clipboardData || window.clipboardData).getData("text/plain");
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) return;
-  const range = sel.getRangeAt(0);
-  range.deleteContents();
-  const lines = pasted.split(/\r\n|\r|\n/);
-  const frag = document.createDocumentFragment();
-  lines.forEach((line, i) => {
-    frag.appendChild(document.createTextNode(line));
-    if (i < lines.length - 1) frag.appendChild(document.createElement("br"));
-  });
-  range.insertNode(frag);
-  range.collapse(false);
-  sel.removeAllRanges();
-  sel.addRange(range);
-  handleInput();
-};
-
-  // Recompute visual line marker positions (start of every wrapped line).
-  // Walks the editor's DOM nodes directly (text nodes + <br> elements) so a
-  // single running "paragraph index" stays in sync with each measured
-  // character — no separate innerText offset table that could drift.
-  const recomputeLines = useCallback(() => {
-    const el = editorRef.current;
-    const wrapper = wrapperRef.current;
-    if (!el || !wrapper) return;
-    const wrapperRect = wrapper.getBoundingClientRect();
-    if (!el.textContent || !el.textContent.trim()) { setLineMarkers([]); return; }
-
-    const markers = [];
-    let lastTop = null;
-    let paraIndex = 0;
-    let atParaStart = true; // true right after a <br> (or at the very start)
-    const range = document.createRange();
-
-    const visit = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const value = node.nodeValue;
-        for (let i = 0; i < value.length; i++) {
-          range.setStart(node, i);
-          range.setEnd(node, i + 1);
-          const rects = range.getClientRects();
-          if (rects.length === 0) continue;
-          const rect = rects[0];
-          const top = Math.round(rect.top);
-          const isNewVisualLine = lastTop === null || top !== lastTop;
-          if (isNewVisualLine || atParaStart) {
-            const already = markers.length && markers[markers.length - 1].top === top;
-            if (!already) {
-              markers.push({
-                top: rect.top - wrapperRect.top + wrapper.scrollTop,
-                left: rect.left - wrapperRect.left,
-                key: `m-${markers.length}-${top}`,
-                paraIndex,
-              });
-            }
-          }
-          lastTop = top;
-          atParaStart = false;
-        }
-      } else if (node.nodeName === "BR") {
-        paraIndex += 1;
-        atParaStart = true;
-        lastTop = null; // force a fresh marker on the next character
-      } else {
-        node.childNodes.forEach(visit);
+  const initBlocks = useCallback(() => {
+    // If null or old format, initialize with one empty text block
+    if (!blocks || !Array.isArray(blocks)) {
+      if (blocks && typeof blocks === "object" && blocks.text !== undefined) {
+        // Migrate: turn old text into a single text block
+        const migrated = [{ id: `blk-${Date.now()}`, type: "text", content: blocks.text || "", note: "" }];
+        setBlocks(migrated);
+        return migrated;
       }
-    };
-    el.childNodes.forEach(visit);
-    setLineMarkers(markers);
-  }, []);
+      const fresh = [{ id: `blk-${Date.now()}`, type: "text", content: "", note: "" }];
+      setBlocks(fresh);
+      return fresh;
+    }
+    return blocks;
+  }, []);// eslint-disable-line
 
+  const safeBlocks = Array.isArray(blocks) ? blocks : initBlocks();
+
+  // Ensure there's always at least one text block at the end
   useEffect(() => {
-    recomputeLines();
-    const onResize = () => recomputeLines();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [text, recomputeLines]);
+    if (!Array.isArray(blocks)) return;
+    if (blocks.length === 0 || blocks[blocks.length - 1].type !== "text") {
+      setBlocks(b => [...(Array.isArray(b) ? b : []), { id: `blk-${Date.now()}`, type: "text", content: "", note: "" }]);
+    }
+  }, [blocks]);// eslint-disable-line
 
-  const saveParaNote = (paraIndex, note) => {
-    setContent(p => ({ ...p, paraNotes: { ...(p.paraNotes || {}), [paraIndex]: note } }));
-  };
-  const clearParaNote = (paraIndex) => {
-    setContent(p => { const n = { ...(p.paraNotes || {}) }; delete n[paraIndex]; return { ...p, paraNotes: n }; });
-  };
+  const updateBlock = useCallback((id, patch) => {
+    setBlocks(prev => (Array.isArray(prev) ? prev : []).map(b => b.id === id ? { ...b, ...patch } : b));
+  }, [setBlocks]);
 
-  const noteCount = Object.values(paraNotes).filter(n => n && n.trim()).length;
-  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const insertImageAfter = useCallback((afterId, src) => {
+    setBlocks(prev => {
+      const arr = Array.isArray(prev) ? [...prev] : [];
+      const idx = arr.findIndex(b => b.id === afterId);
+      const imgBlock = { id: `blk-img-${Date.now()}`, type: "image", content: src, note: "" };
+      const txtBlock = { id: `blk-txt-${Date.now() + 1}`, type: "text", content: "", note: "" };
+      arr.splice(idx + 1, 0, imgBlock, txtBlock);
+      return arr;
+    });
+  }, [setBlocks]);
+
+  const wordCount = safeBlocks.filter(b => b.type === "text").reduce((acc, b) => {
+    return acc + (b.content.trim() ? b.content.trim().split(/\s+/).length : 0);
+  }, 0);
+  const noteCount = safeBlocks.filter(b => b.note && b.note.trim()).length;
 
   return (
     <div style={{
@@ -795,117 +699,239 @@ function NotebookDocument({ page, folderColor }) {
       padding: "40px 48px 48px",
       position: "relative",
     }}>
-      {/* Page corner fold */}
       <div style={{ position: "absolute", top: 0, right: 0, width: 0, height: 0, borderStyle: "solid", borderWidth: "0 28px 28px 0", borderColor: `transparent rgba(255,255,255,0.06) transparent transparent` }} />
-
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{wordCount} word{wordCount !== 1 ? "s" : ""}</span>
         {noteCount > 0 && <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: folderColor, background: `${folderColor}18`, border: `1px solid ${folderColor}35`, borderRadius: 8, padding: "4px 12px" }}>{noteCount} annotation{noteCount !== 1 ? "s" : ""}</span>}
       </div>
 
-      <div ref={wrapperRef} style={{ position: "relative" }}>
-        {/* The single free-flowing document surface */}
-        <div
-          ref={editorRef}
-          className="notebook-doc-editor"
-          contentEditable
-          suppressContentEditableWarning
-          onInput={handleInput}
-          onPaste={handlePaste}
-          onCompositionStart={() => { isComposingRef.current = true; }}
-          onCompositionEnd={() => { isComposingRef.current = false; handleInput(); }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              const sel = window.getSelection();
-              if (!sel || sel.rangeCount === 0) return;
-              const range = sel.getRangeAt(0);
-              range.deleteContents();
-              const br = document.createElement("br");
-              range.insertNode(br);
-              // If the node after the <br> is empty, Chrome's caret silently
-              // snaps back to before the <br> on the next keystroke (an
-              // empty text node isn't enough to anchor to, whether it was
-              // already there from insertNode()'s text-node split or one we
-              // add ourselves). A zero-width space gives it real content to
-              // anchor to; handleInput() strips it back out afterward.
-              let afterText = br.nextSibling;
-              if (!afterText || afterText.nodeType !== Node.TEXT_NODE) {
-                afterText = document.createTextNode("");
-                br.after(afterText);
-              }
-              if (afterText.nodeValue === "") afterText.nodeValue = "\u200B";
-              range.setStart(afterText, afterText.nodeValue.length);
-              range.setEnd(afterText, afterText.nodeValue.length);
-              sel.removeAllRanges();
-              sel.addRange(range);
-              handleInput();
-              recomputeLines();
-            }
-          }}
-          onKeyUp={recomputeLines}
-          onClick={recomputeLines}
-          data-placeholder="Start writing… each Enter creates a new paragraph."
-          style={{
-            width: "100%",
-            minHeight: 170,
-            maxWidth: "100%",
-textAlign: "left",
-            paddingLeft: 28,
-            outline: "none",
-            fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace",
-            fontSize: 14,
-            color: "#E8E4DC",
-            lineHeight: "26px",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
-            caretColor: folderColor,
-          }}
-        />
-        {/* Visual line note markers — positioned from live measured line starts */}
-        {lineMarkers.map(m => (
-          <VisualLineNote
-            key={m.key}
-            top={m.top + 5}
-            left={m.left - 24}
-            accent={folderColor}
-            note={paraNotes[m.paraIndex] || ""}
-            onSave={(val) => saveParaNote(m.paraIndex, val)}
-            onClear={() => clearParaNote(m.paraIndex)}
-          />
-        ))}
+      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        {safeBlocks.map((block) =>
+          block.type === "image" ? (
+            <ImageBlock
+              key={block.id}
+              src={block.content}
+              note={block.note || ""}
+              onNoteChange={(val) => updateBlock(block.id, { note: val })}
+              onNoteClear={() => updateBlock(block.id, { note: "" })}
+              accent={folderColor}
+            />
+          ) : (
+            <TextBlock
+              key={block.id}
+              block={block}
+              folderColor={folderColor}
+              onUpdate={(patch) => updateBlock(block.id, patch)}
+              onImagePaste={(src) => insertImageAfter(block.id, src)}
+            />
+          )
+        )}
       </div>
     </div>
   );
 }
 
-// ── Page Editor (wraps one or more documents/pages in a folder) ───────────────
-function PageEditor({ page, folderId, folderColor, onBack }) {
-  const pagesKey = `notebooks-pages-${folderId}`;
-  const [pages, setPages] = useLocalStorage(pagesKey, []);
+// ── Single text block with visual line markers ────────────────────────────────
+function TextBlock({ block, folderColor, onUpdate, onImagePaste }) {
+  const editorRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const [lineMarkers, setLineMarkers] = useState([]);
+  const isComposingRef = useRef(false);
+  const text = block.content || "";
 
-  // Ensure at least the current page exists in the pages list (defensive).
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    if (document.activeElement === el) return;
+    const domText = el.innerText.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
+    if (domText === text) return;
+    el.innerHTML = "";
+    const parts = (text || "").split("\n");
+    parts.forEach((part, i) => {
+      el.appendChild(document.createTextNode(part));
+      if (i < parts.length - 1) el.appendChild(document.createElement("br"));
+    });
+    if (!el.lastChild || el.lastChild.nodeName !== "BR") {
+      el.appendChild(document.createElement("br"));
+    }
+  }, [text]);
+
+  const commitText = useCallback((newText) => {
+    onUpdate({ content: newText });
+  }, [onUpdate]);
+
+  const handleInput = () => {
+    if (isComposingRef.current) return;
+    const el = editorRef.current;
+    if (!el) return;
+    const raw = el.innerText.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
+    commitText(raw);
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    // Image paste
+    const items = Array.from(e.clipboardData.items || []);
+    const imageItem = items.find(it => it.type.startsWith("image/"));
+    if (imageItem) {
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        onImagePaste(ev.target.result);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+    // Plain text paste
+    const pasted = (e.clipboardData || window.clipboardData).getData("text/plain");
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const lines = pasted.split(/\r\n|\r|\n/);
+    const frag = document.createDocumentFragment();
+    lines.forEach((line, i) => {
+      frag.appendChild(document.createTextNode(line));
+      if (i < lines.length - 1) frag.appendChild(document.createElement("br"));
+    });
+    range.insertNode(frag);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    handleInput();
+  };
+
+  const recomputeLines = useCallback(() => {
+    const el = editorRef.current;
+    const wrapper = wrapperRef.current;
+    if (!el || !wrapper) return;
+    const wrapperRect = wrapper.getBoundingClientRect();
+    if (!el.textContent || !el.textContent.trim()) { setLineMarkers([]); return; }
+    const markers = [];
+    let lastTop = null, paraIndex = 0, atParaStart = true;
+    const range = document.createRange();
+    const visit = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const value = node.nodeValue;
+        for (let i = 0; i < value.length; i++) {
+          range.setStart(node, i); range.setEnd(node, i + 1);
+          const rects = range.getClientRects();
+          if (rects.length === 0) continue;
+          const rect = rects[0];
+          const top = Math.round(rect.top);
+          const isNewVisualLine = lastTop === null || top !== lastTop;
+          if (isNewVisualLine || atParaStart) {
+            const already = markers.length && markers[markers.length - 1].top === top;
+            if (!already) {
+              markers.push({ top: rect.top - wrapperRect.top + wrapper.scrollTop, left: rect.left - wrapperRect.left, key: `m-${markers.length}-${top}`, paraIndex });
+            }
+          }
+          lastTop = top; atParaStart = false;
+        }
+      } else if (node.nodeName === "BR") {
+        paraIndex += 1; atParaStart = true; lastTop = null;
+      } else { node.childNodes.forEach(visit); }
+    };
+    el.childNodes.forEach(visit);
+    setLineMarkers(markers);
+  }, []);
+
+  useEffect(() => {
+    recomputeLines();
+    window.addEventListener("resize", recomputeLines);
+    return () => window.removeEventListener("resize", recomputeLines);
+  }, [text, recomputeLines]);
+
+  const paraNotes = block.paraNotes || {};
+  const saveParaNote = (paraIndex, note) => {
+    onUpdate({ paraNotes: { ...paraNotes, [paraIndex]: note } });
+  };
+  const clearParaNote = (paraIndex) => {
+    const n = { ...paraNotes }; delete n[paraIndex];
+    onUpdate({ paraNotes: n });
+  };
+
+  return (
+    <div ref={wrapperRef} style={{ position: "relative", minHeight: 26 }}>
+      <div
+        ref={editorRef}
+        className="notebook-doc-editor"
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onPaste={handlePaste}
+        onCompositionStart={() => { isComposingRef.current = true; }}
+        onCompositionEnd={() => { isComposingRef.current = false; handleInput(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const br = document.createElement("br");
+            range.insertNode(br);
+            let afterText = br.nextSibling;
+            if (!afterText || afterText.nodeType !== Node.TEXT_NODE) {
+              afterText = document.createTextNode("");
+              br.after(afterText);
+            }
+            if (afterText.nodeValue === "") afterText.nodeValue = "\u200B";
+            range.setStart(afterText, afterText.nodeValue.length);
+            range.setEnd(afterText, afterText.nodeValue.length);
+            sel.removeAllRanges(); sel.addRange(range);
+            handleInput(); recomputeLines();
+          }
+        }}
+        onKeyUp={recomputeLines}
+        onClick={recomputeLines}
+        data-placeholder="Start writing…"
+        style={{
+          width: "100%", minHeight: 26,
+          paddingLeft: 28,
+          outline: "none",
+          fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace",
+          fontSize: 14, color: "#E8E4DC", lineHeight: "26px",
+          whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere",
+          caretColor: folderColor, textAlign: "left",
+        }}
+      />
+      {lineMarkers.map(m => (
+        <VisualLineNote
+          key={m.key}
+          top={m.top + 5} left={m.left - 24}
+          accent={folderColor}
+          note={paraNotes[m.paraIndex] || ""}
+          onSave={(val) => saveParaNote(m.paraIndex, val)}
+          onClear={() => clearParaNote(m.paraIndex)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Page Editor ───────────────────────────────────────────────────────────────
+function PageEditor({ page, fileId, folderColor, onBack }) {
+  const pagesKey = `notebooks-pages-${fileId}`;
+  const [pages, setPages] = useLocalStorage(pagesKey, []);
   const orderedPages = pages.length ? pages : [page];
 
   const addNewPage = () => {
-    const newPage = { id: `page-${Date.now()}`, name: `${page.name} (cont.)`, createdAt: Date.now() };
+    const newPage = { id: `page-${Date.now()}`, name: `Page ${orderedPages.length + 1}`, createdAt: Date.now() };
     setPages(p => [...(p.length ? p : [page]), newPage]);
   };
 
   return (
     <div style={{ minHeight: "100vh" }}>
-      {/* Header */}
       <div style={{ padding: "28px 0 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 32 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to folder</button>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to file</button>
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 36, fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folderColor}`, paddingLeft: 18, lineHeight: 1.1 }}>{page.name}</h1>
-          <div style={{ display: "flex", gap: 12, marginLeft: "auto" }}>
-            <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "4px 12px" }}>{orderedPages.length} page{orderedPages.length !== 1 ? "s" : ""}</span>
-          </div>
+          <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "4px 12px", marginLeft: "auto" }}>{orderedPages.length} page{orderedPages.length !== 1 ? "s" : ""}</span>
         </div>
         <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 10, paddingLeft: 22 }}>
-          Hover the <span style={{ color: folderColor }}>●</span> dot at a line's start to annotate it · Enter for new paragraph · Click "Add New Page" for another document
+          Click the <span style={{ color: folderColor }}>●</span> dot to annotate a line · Ctrl+V to paste images · Enter for new line
         </div>
       </div>
 
@@ -913,11 +939,8 @@ function PageEditor({ page, folderId, folderColor, onBack }) {
         <NotebookDocument key={pg.id} page={pg} folderColor={folderColor} />
       ))}
 
-      {/* Add New Page button — only after the final page */}
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <button
-          onClick={addNewPage}
-          style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "center", background: "none", border: `1px dashed rgba(255,255,255,0.14)`, borderRadius: 10, padding: "16px 0", fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "rgba(255,255,255,0.35)", cursor: "pointer", transition: "all 0.2s" }}
+        <button onClick={addNewPage} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "center", background: "none", border: `1px dashed rgba(255,255,255,0.14)`, borderRadius: 10, padding: "16px 0", fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "rgba(255,255,255,0.35)", cursor: "pointer", transition: "all 0.2s" }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = folderColor; e.currentTarget.style.color = folderColor; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.color = "rgba(255,255,255,0.35)"; }}
         >+ Add New Page</button>
@@ -927,9 +950,9 @@ function PageEditor({ page, folderId, folderColor, onBack }) {
   );
 }
 
-// ── Folder view (pages list) ──────────────────────────────────────────────────
-function FolderView({ folder, onBack, onOpenPage }) {
-  const pagesKey = `notebooks-pages-${folder.id}`;
+// ── File view (pages list inside a file) ──────────────────────────────────────
+function FileView({ file, folderId, folderColor, onBack, onOpenPage }) {
+  const pagesKey = `notebooks-pages-${file.id}`;
   const [pages, setPages] = useLocalStorage(pagesKey, []);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -952,24 +975,25 @@ function FolderView({ folder, onBack, onOpenPage }) {
       const raw = localStorage.getItem(`notebooks-content-${pageId}`);
       if (!raw) return 0;
       const data = JSON.parse(raw);
-      const text = data.text || "";
-      return text.trim() ? text.trim().split(/\s+/).length : 0;
+      if (Array.isArray(data)) {
+        return data.filter(b => b.type === "text").reduce((acc, b) => acc + (b.content?.trim() ? b.content.trim().split(/\s+/).length : 0), 0);
+      }
+      if (data.text) return data.text.trim() ? data.text.trim().split(/\s+/).length : 0;
+      return 0;
     } catch { return 0; }
   };
 
   return (
     <div>
-      {/* Header */}
       <div style={{ padding: "28px 0 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 40 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to notebooks</button>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to folder</button>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: `${folder.color}22`, border: `2px solid ${folder.color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📁</div>
-          <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(32px,4vw,52px)", fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folder.color}`, paddingLeft: 18, lineHeight: 1.1 }}>{folder.name}</h1>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: `${folderColor}22`, border: `2px solid ${folderColor}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📄</div>
+          <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(28px,3.5vw,46px)", fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folderColor}`, paddingLeft: 18, lineHeight: 1.1 }}>{file.name}</h1>
         </div>
         <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 10, paddingLeft: 66 }}>{pages.length} page{pages.length !== 1 ? "s" : ""}</div>
       </div>
 
-      {/* Pages list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 28 }}>
         {pages.length === 0 && !adding && (
           <div style={{ textAlign: "center", padding: "48px 0", fontFamily: "'Poppins',sans-serif", fontSize: 15, color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>No pages yet — add your first page below</div>
@@ -978,23 +1002,22 @@ function FolderView({ folder, onBack, onOpenPage }) {
           const wordCount = getWordCount(pg.id);
           return (
             <Reveal key={pg.id} delay={i * 0.05}>
-              <div style={{ display: "flex", alignItems: "center", gap: 0, background: "rgba(10,10,10,0.85)", backdropFilter: "blur(20px)", border: `1px solid rgba(255,255,255,0.08)`, borderLeft: `4px solid ${folder.color}`, borderRadius: 16, overflow: "hidden", transition: "all 0.3s ease", cursor: "pointer" }}
+              <div style={{ display: "flex", alignItems: "center", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(20px)", border: `1px solid rgba(255,255,255,0.08)`, borderLeft: `4px solid ${folderColor}`, borderRadius: 16, overflow: "hidden", transition: "all 0.3s ease", cursor: "pointer" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(22,22,22,0.95)"; e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.6)`; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(10,10,10,0.85)"; e.currentTarget.style.boxShadow = "none"; }}
               >
-                {/* Page icon */}
-                <div onClick={() => onOpenPage(pg)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 24px" }}>
-                  <div style={{ width: 38, height: 46, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, display: "flex", alignItems: "flex-end", justifyContent: "flex-start", padding: "4px 5px", flexShrink: 0, position: "relative", overflow: "hidden" }}>
+                <div onClick={() => onOpenPage(pg, file.id)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 24px" }}>
+                  <div style={{ width: 38, height: 46, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, position: "relative", overflow: "hidden", flexShrink: 0 }}>
                     {[0,1,2,3].map(r => <div key={r} style={{ position: "absolute", left: 5, top: 8 + r * 8, right: 5, height: 1, background: "rgba(255,255,255,0.12)" }} />)}
-                    <div style={{ position: "absolute", top: 0, right: 0, width: 10, height: 10, background: `${folder.color}44`, clipPath: "polygon(0 0,100% 0,100% 100%)" }} />
+                    <div style={{ position: "absolute", top: 0, right: 0, width: 10, height: 10, background: `${folderColor}44`, clipPath: "polygon(0 0,100% 0,100% 100%)" }} />
                   </div>
                   <div>
                     <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 16, fontWeight: 600, color: "#FFFFFF", marginBottom: 4 }}>{pg.name}</div>
                     <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{wordCount > 0 ? `${wordCount} word${wordCount !== 1 ? "s" : ""}` : "Empty"} · {new Date(pg.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-                  <div onClick={() => onOpenPage(pg)} style={{ padding: "20px 18px", color: folder.color, fontSize: 18, cursor: "pointer", opacity: 0.7, transition: "opacity 0.2s" }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0.7}>→</div>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <div onClick={() => onOpenPage(pg, file.id)} style={{ padding: "20px 18px", color: folderColor, fontSize: 18, cursor: "pointer", opacity: 0.7 }}>→</div>
                   <div onClick={() => deletePage(pg.id)} style={{ padding: "20px 18px", color: "rgba(255,255,255,0.2)", fontSize: 16, cursor: "pointer", transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = "#E8906A"} onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}>🗑</div>
                 </div>
               </div>
@@ -1003,21 +1026,106 @@ function FolderView({ folder, onBack, onOpenPage }) {
         })}
       </div>
 
-      {/* Add page */}
+      {adding ? (
+        <div style={{ display: "flex", gap: 12, alignItems: "center", background: "rgba(10,10,10,0.85)", border: `1px solid ${folderColor}55`, borderRadius: 14, padding: "16px 20px" }}>
+          <input ref={inputRef} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addPage(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="Page name…" style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontFamily: "'Poppins',sans-serif", fontSize: 15, color: "#FFFFFF", fontWeight: 500 }} />
+          <button onClick={addPage} style={{ background: folderColor, border: "none", borderRadius: 10, padding: "8px 20px", fontFamily: "'Poppins',sans-serif", fontSize: 13, fontWeight: 600, color: "#141414", cursor: "pointer" }}>Add</button>
+          <button onClick={() => { setAdding(false); setNewName(""); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "8px 14px", fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer" }}>Cancel</button>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "rgba(10,10,10,0.6)", border: `1.5px dashed ${folderColor}44`, borderRadius: 14, padding: "18px 24px", fontFamily: "'Poppins',sans-serif", fontSize: 14, color: `${folderColor}99`, cursor: "pointer", transition: "all 0.25s", fontWeight: 500 }}
+          onMouseEnter={e => { e.currentTarget.style.background = `${folderColor}10`; e.currentTarget.style.borderColor = `${folderColor}88`; e.currentTarget.style.color = folderColor; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(10,10,10,0.6)"; e.currentTarget.style.borderColor = `${folderColor}44`; e.currentTarget.style.color = `${folderColor}99`; }}
+        ><span style={{ fontSize: 18 }}>+</span> Add page</button>
+      )}
+      <div style={{ height: 88 }} />
+    </div>
+  );
+}
+
+// ── Folder view (files list) ──────────────────────────────────────────────────
+function FolderView({ folder, onBack, onOpenFile }) {
+  const filesKey = `notebooks-files-${folder.id}`;
+  const [files, setFiles] = useLocalStorage(filesKey, []);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const inputRef = useRef(null);
+
+  const addFile = () => {
+    if (!newName.trim()) return;
+    setFiles(p => [...p, { id: `file-${Date.now()}`, name: newName.trim(), createdAt: Date.now() }]);
+    setNewName(""); setAdding(false);
+  };
+  const deleteFile = (id) => {
+    setFiles(p => p.filter(f => f.id !== id));
+    // Also remove pages under this file
+    try {
+      const pagesRaw = localStorage.getItem(`notebooks-pages-${id}`);
+      if (pagesRaw) {
+        const pages = JSON.parse(pagesRaw);
+        pages.forEach(pg => { try { localStorage.removeItem(`notebooks-content-${pg.id}`); } catch {} });
+      }
+      localStorage.removeItem(`notebooks-pages-${id}`);
+    } catch {}
+  };
+
+  useEffect(() => { if (adding && inputRef.current) inputRef.current.focus(); }, [adding]);
+
+  const getPageCount = (fileId) => {
+    try { const raw = localStorage.getItem(`notebooks-pages-${fileId}`); return raw ? JSON.parse(raw).length : 0; } catch { return 0; }
+  };
+
+  return (
+    <div>
+      <div style={{ padding: "28px 0 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 40 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to notebooks</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: `${folder.color}22`, border: `2px solid ${folder.color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📁</div>
+          <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(32px,4vw,52px)", fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folder.color}`, paddingLeft: 18, lineHeight: 1.1 }}>{folder.name}</h1>
+        </div>
+        <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 10, paddingLeft: 66 }}>{files.length} file{files.length !== 1 ? "s" : ""}</div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 28 }}>
+        {files.length === 0 && !adding && (
+          <div style={{ textAlign: "center", padding: "48px 0", fontFamily: "'Poppins',sans-serif", fontSize: 15, color: "rgba(255,255,255,0.25)", fontStyle: "italic" }}>No files yet — add your first file below</div>
+        )}
+        {files.map((file, i) => {
+          const pageCount = getPageCount(file.id);
+          return (
+            <Reveal key={file.id} delay={i * 0.05}>
+              <div style={{ display: "flex", alignItems: "center", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(20px)", border: `1px solid rgba(255,255,255,0.08)`, borderLeft: `4px solid ${folder.color}`, borderRadius: 16, overflow: "hidden", transition: "all 0.3s ease", cursor: "pointer" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(22,22,22,0.95)"; e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.6)`; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(10,10,10,0.85)"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                <div onClick={() => onOpenFile(file)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 24px" }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: `${folder.color}18`, border: `1.5px solid ${folder.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>📄</div>
+                  <div>
+                    <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 16, fontWeight: 600, color: "#FFFFFF", marginBottom: 4 }}>{file.name}</div>
+                    <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{pageCount} page{pageCount !== 1 ? "s" : ""} · {new Date(file.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <div onClick={() => onOpenFile(file)} style={{ padding: "20px 18px", color: folder.color, fontSize: 18, cursor: "pointer", opacity: 0.7 }}>→</div>
+                  <div onClick={() => deleteFile(file.id)} style={{ padding: "20px 18px", color: "rgba(255,255,255,0.2)", fontSize: 16, cursor: "pointer", transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = "#E8906A"} onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}>🗑</div>
+                </div>
+              </div>
+            </Reveal>
+          );
+        })}
+      </div>
+
       {adding ? (
         <div style={{ display: "flex", gap: 12, alignItems: "center", background: "rgba(10,10,10,0.85)", border: `1px solid ${folder.color}55`, borderRadius: 14, padding: "16px 20px" }}>
-          <div style={{ width: 10, height: 10, borderRadius: 3, background: folder.color, flexShrink: 0 }} />
-          <input ref={inputRef} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addPage(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="Page name…" style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontFamily: "'Poppins',sans-serif", fontSize: 15, color: "#FFFFFF", fontWeight: 500 }} />
-          <button onClick={addPage} style={{ background: folder.color, border: "none", borderRadius: 10, padding: "8px 20px", fontFamily: "'Poppins',sans-serif", fontSize: 13, fontWeight: 600, color: "#141414", cursor: "pointer" }}>Add</button>
+          <input ref={inputRef} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addFile(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="File name…" style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontFamily: "'Poppins',sans-serif", fontSize: 15, color: "#FFFFFF", fontWeight: 500 }} />
+          <button onClick={addFile} style={{ background: folder.color, border: "none", borderRadius: 10, padding: "8px 20px", fontFamily: "'Poppins',sans-serif", fontSize: 13, fontWeight: 600, color: "#141414", cursor: "pointer" }}>Add</button>
           <button onClick={() => { setAdding(false); setNewName(""); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "8px 14px", fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer" }}>Cancel</button>
         </div>
       ) : (
         <button onClick={() => setAdding(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "rgba(10,10,10,0.6)", border: `1.5px dashed ${folder.color}44`, borderRadius: 14, padding: "18px 24px", fontFamily: "'Poppins',sans-serif", fontSize: 14, color: `${folder.color}99`, cursor: "pointer", transition: "all 0.25s", fontWeight: 500 }}
           onMouseEnter={e => { e.currentTarget.style.background = `${folder.color}10`; e.currentTarget.style.borderColor = `${folder.color}88`; e.currentTarget.style.color = folder.color; }}
           onMouseLeave={e => { e.currentTarget.style.background = "rgba(10,10,10,0.6)"; e.currentTarget.style.borderColor = `${folder.color}44`; e.currentTarget.style.color = `${folder.color}99`; }}
-        >
-          <span style={{ fontSize: 18 }}>+</span> Add page
-        </button>
+        ><span style={{ fontSize: 18 }}>+</span> Add file</button>
       )}
       <div style={{ height: 88 }} />
     </div>
@@ -1031,7 +1139,9 @@ function NotebooksPage({ onBack }) {
   const [newName, setNewName] = useState("");
   const [colorIdx, setColorIdx] = useState(0);
   const [openFolder, setOpenFolder] = useState(null);
+  const [openFile, setOpenFile] = useState(null);
   const [openPage, setOpenPage] = useState(null);
+  const [openPageFileId, setOpenPageFileId] = useState(null);
   const inputRef = useRef(null);
 
   const addFolder = () => {
@@ -1042,50 +1152,60 @@ function NotebooksPage({ onBack }) {
   const deleteFolder = (id) => setFolders(p => p.filter(f => f.id !== id));
   useEffect(() => { if (adding && inputRef.current) inputRef.current.focus(); }, [adding]);
 
-  // Drill-down routing
-  if (openPage && openFolder) return (
-    <PageEditor page={openPage} folderId={openFolder.id} folderColor={openFolder.color} onBack={() => setOpenPage(null)} />
-  );
-  if (openFolder) return (
-    <FolderView folder={openFolder} onBack={() => setOpenFolder(null)} onOpenPage={(pg) => setOpenPage(pg)} />
-  );
+  // Drill-down routing: folder → file → page
+  if (openPage && openFolder) {
+    return (
+      <PageEditor
+        page={openPage}
+        fileId={openPageFileId}
+        folderColor={openFolder.color}
+        onBack={() => { setOpenPage(null); setOpenPageFileId(null); }}
+      />
+    );
+  }
+  if (openFile && openFolder) {
+    return (
+      <FileView
+        file={openFile}
+        folderId={openFolder.id}
+        folderColor={openFolder.color}
+        onBack={() => setOpenFile(null)}
+        onOpenPage={(pg, fileId) => { setOpenPage(pg); setOpenPageFileId(fileId || openFile.id); }}
+      />
+    );
+  }
+  if (openFolder) {
+    return (
+      <FolderView
+        folder={openFolder}
+        onBack={() => setOpenFolder(null)}
+        onOpenFile={(file) => setOpenFile(file)}
+      />
+    );
+  }
 
   return (
     <div>
       <PageHeader title="Study Notebooks" accent="#5A90AA" onBack={onBack} />
-
       <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 40, lineHeight: 1.7 }}>
-        Organise your learning by topic. Each folder holds pages; each page is a free-flowing document with per-line annotations.
+        Organise your learning. Each folder holds files, each file holds pages, each page is a free-flowing document with images and per-line annotations.
       </div>
 
-      {/* Folder Grid — 4 per row */}
       {folders.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 32 }}>
           {folders.map((folder, i) => {
-            const pagesKey = `notebooks-pages-${folder.id}`;
-            let pageCount = 0;
-            try { const raw = localStorage.getItem(pagesKey); if (raw) pageCount = JSON.parse(raw).length; } catch {}
+            let fileCount = 0;
+            try { const raw = localStorage.getItem(`notebooks-files-${folder.id}`); if (raw) fileCount = JSON.parse(raw).length; } catch {}
             return (
               <Reveal key={folder.id} delay={i * 0.05}>
                 <div style={{ position: "relative" }}>
                   <button
                     onClick={() => setOpenFolder(folder)}
-                    style={{
-                      width: "100%", aspectRatio: "3/2.2",
-                      background: `linear-gradient(135deg, ${folder.color}18 0%, rgba(10,10,10,0.92) 60%)`,
-                      border: `1.5px solid ${folder.color}44`, borderTop: `4px solid ${folder.color}`,
-                      borderRadius: 18, cursor: "pointer", padding: "22px 20px",
-                      display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between",
-                      backdropFilter: "blur(20px)", transition: "all 0.3s ease",
-                      boxShadow: `0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 ${folder.color}22`,
-                      position: "relative", overflow: "hidden",
-                    }}
+                    style={{ width: "100%", aspectRatio: "3/2.2", background: `linear-gradient(135deg, ${folder.color}18 0%, rgba(10,10,10,0.92) 60%)`, border: `1.5px solid ${folder.color}44`, borderTop: `4px solid ${folder.color}`, borderRadius: 18, cursor: "pointer", padding: "22px 20px", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", backdropFilter: "blur(20px)", transition: "all 0.3s ease", boxShadow: `0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 ${folder.color}22`, position: "relative", overflow: "hidden" }}
                     onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px) scale(1.02)"; e.currentTarget.style.boxShadow = `0 16px 48px rgba(0,0,0,0.7), 0 0 0 1px ${folder.color}55`; e.currentTarget.style.background = `linear-gradient(135deg, ${folder.color}28 0%, rgba(18,18,18,0.96) 60%)`; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = `0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 ${folder.color}22`; e.currentTarget.style.background = `linear-gradient(135deg, ${folder.color}18 0%, rgba(10,10,10,0.92) 60%)`; }}
                   >
-                    {/* Folder tab */}
                     <div style={{ position: "absolute", top: -4, left: 16, width: 40, height: 8, background: folder.color, borderRadius: "4px 4px 0 0", opacity: 0.7 }} />
-                    {/* Decorative lines suggesting content */}
                     <div style={{ position: "absolute", bottom: 28, left: 20, right: 20 }}>
                       {[0,1,2].map(r => <div key={r} style={{ height: 1.5, background: `${folder.color}18`, borderRadius: 2, marginBottom: r < 2 ? 7 : 0, width: r === 2 ? "55%" : "100%" }} />)}
                     </div>
@@ -1094,10 +1214,9 @@ function NotebooksPage({ onBack }) {
                       <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, fontWeight: 700, color: "#FFFFFF", letterSpacing: "-0.2px", lineHeight: 1.3 }}>{folder.name}</span>
                     </div>
                     <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: folder.color, fontWeight: 600, background: `${folder.color}18`, border: `1px solid ${folder.color}35`, borderRadius: 8, padding: "3px 10px", zIndex: 1 }}>
-                      {pageCount} page{pageCount !== 1 ? "s" : ""}
+                      {fileCount} file{fileCount !== 1 ? "s" : ""}
                     </div>
                   </button>
-                  {/* Delete button */}
                   <button onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }} style={{ position: "absolute", top: 10, right: 10, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 12, transition: "all 0.2s", zIndex: 10 }}
                     onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,100,74,0.4)"; e.currentTarget.style.color = "#E8906A"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.5)"; e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
@@ -1110,20 +1229,16 @@ function NotebooksPage({ onBack }) {
       )}
 
       {folders.length === 0 && !adding && (
-        <div style={{ textAlign: "center", padding: "72px 0 48px", fontFamily: "'Poppins',sans-serif", fontSize: 16, color: "rgba(255,255,255,0.22)", fontStyle: "italic" }}>
-          No notebooks yet — create your first folder below
-        </div>
+        <div style={{ textAlign: "center", padding: "72px 0 48px", fontFamily: "'Poppins',sans-serif", fontSize: 16, color: "rgba(255,255,255,0.22)", fontStyle: "italic" }}>No notebooks yet — create your first folder below</div>
       )}
 
-      {/* Add folder */}
       <div style={{ marginBottom: 48 }}>
         {adding ? (
           <div style={{ background: "rgba(10,10,10,0.88)", backdropFilter: "blur(20px)", border: "1px solid rgba(90,144,170,0.4)", borderTop: "3px solid #5A90AA", borderRadius: 16, padding: "24px 28px" }}>
             <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.45)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 16 }}>New Folder</div>
             <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
-              <input ref={inputRef} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addFolder(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="Folder name (e.g. Deep Learning, PyTorch)…" style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "11px 16px", fontFamily: "'Poppins',sans-serif", fontSize: 15, fontWeight: 500, color: "#FFFFFF", outline: "none" }} />
+              <input ref={inputRef} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addFolder(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="Folder name…" style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "11px 16px", fontFamily: "'Poppins',sans-serif", fontSize: 15, fontWeight: 500, color: "#FFFFFF", outline: "none" }} />
             </div>
-            {/* Color picker */}
             <div style={{ display: "flex", gap: 10, marginBottom: 18, alignItems: "center" }}>
               <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Color</span>
               {FOLDER_COLORS.map((c, ci) => (
@@ -1139,9 +1254,7 @@ function NotebooksPage({ onBack }) {
           <button onClick={() => setAdding(true)} style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(10,10,10,0.7)", border: "1.5px dashed rgba(90,144,170,0.35)", borderRadius: 16, padding: "20px 28px", fontFamily: "'Poppins',sans-serif", fontSize: 14, color: "rgba(90,144,170,0.7)", cursor: "pointer", transition: "all 0.25s", fontWeight: 500 }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(90,144,170,0.08)"; e.currentTarget.style.borderColor = "rgba(90,144,170,0.65)"; e.currentTarget.style.color = "#5A90AA"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(10,10,10,0.7)"; e.currentTarget.style.borderColor = "rgba(90,144,170,0.35)"; e.currentTarget.style.color = "rgba(90,144,170,0.7)"; }}
-          >
-            <span style={{ fontSize: 20, lineHeight: 1 }}>＋</span> Add Folder
-          </button>
+          ><span style={{ fontSize: 20, lineHeight: 1 }}>＋</span> Add Folder</button>
         )}
       </div>
       <div style={{ height: 48 }} />
@@ -1159,7 +1272,7 @@ const NAV_ITEMS = [
   { id: "academics",  label: "Academics",        sub: "Semesters · Courses",            icon: "◆", idx: 5 },
   { id: "projects",   label: "Personal Projects",sub: "4 projects · Progress tracker",  icon: "◎", idx: 6 },
   { id: "resources",  label: "Saved Resources",  sub: "Notes · Prep · Links",           icon: "◇", idx: 7 },
-  { id: "notebooks",  label: "Study Notebooks",  sub: "Folders · Pages · Annotations",  icon: "◈", idx: 2 },
+  { id: "notebooks",  label: "Study Notebooks",  sub: "Folders · Files · Pages",        icon: "◈", idx: 2 },
 ];
 const NAV_BY_ID = Object.fromEntries(NAV_ITEMS.map(n => [n.id, n]));
 
@@ -1191,47 +1304,37 @@ function Home({ navigate }) {
       <div style={{ height: 1, background: "linear-gradient(to right,transparent,rgba(255,255,255,0.08),transparent)", marginBottom: 32 }} />
       <HomeNotifications />
 
-      {/* 1. Daily Target */}
       <div style={{ position: "relative", zIndex: 60 }}><Reveal delay={0}><DailyTargetBox /></Reveal></div>
       <div style={{ height: 1, background: "linear-gradient(to right,transparent,rgba(255,255,255,0.08),transparent)", margin: "28px 0" }} />
 
-      {/* 2. Quick Links | Deadlines */}
       <div style={{ position: "relative", zIndex: 55, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22 }}>
         <Reveal delay={0.04}><QuickLinksBox /></Reveal>
         <Reveal delay={0.08}><DeadlineBox /></Reveal>
       </div>
 
-      {/* 3. Study Calendar | Study Notebooks */}
       <div style={{ position: "relative", zIndex: 50, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginTop: 22 }}>
         <Reveal delay={0.12}><NavCard item={NAV_BY_ID.calendar} color={P.cards[NAV_BY_ID.calendar.idx]} navigate={navigate} /></Reveal>
         <Reveal delay={0.16}><NavCard item={NAV_BY_ID.notebooks} color={{ accent: "#5A90AA" }} navigate={navigate} /></Reveal>
       </div>
 
-      {/* 4. AI/ML Roadmap | Current Topic */}
       <div style={{ position: "relative", zIndex: 45, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginTop: 22 }}>
         <Reveal delay={0.20}><NavCard item={NAV_BY_ID["ai-ml"]} color={P.cards[NAV_BY_ID["ai-ml"].idx]} navigate={navigate} /></Reveal>
         <Reveal delay={0.24}><NavCard item={NAV_BY_ID["current-topic"]} color={P.cards[NAV_BY_ID["current-topic"].idx]} navigate={navigate} /></Reveal>
       </div>
 
-      {/* 5. DSA Progress | Academics */}
       <div style={{ position: "relative", zIndex: 40, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginTop: 22 }}>
         <Reveal delay={0.28}><NavCard item={NAV_BY_ID.dsa} color={P.cards[NAV_BY_ID.dsa.idx]} navigate={navigate} /></Reveal>
         <Reveal delay={0.32}><NavCard item={NAV_BY_ID.academics} color={P.cards[NAV_BY_ID.academics.idx]} navigate={navigate} /></Reveal>
       </div>
 
-      {/* 6. Personal Projects | Saved Resources */}
       <div style={{ position: "relative", zIndex: 35, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginTop: 22 }}>
         <Reveal delay={0.36}><NavCard item={NAV_BY_ID.projects} color={P.cards[NAV_BY_ID.projects.idx]} navigate={navigate} /></Reveal>
         <Reveal delay={0.40}><NavCard item={NAV_BY_ID.resources} color={P.cards[NAV_BY_ID.resources.idx]} navigate={navigate} /></Reveal>
       </div>
 
       <div style={{ height: 1, background: "linear-gradient(to right,transparent,rgba(255,255,255,0.08),transparent)", margin: "28px 0" }} />
-
-      {/* 7. Quick Notes */}
       <div style={{ position: "relative", zIndex: 30 }}><Reveal delay={0.44}><NotesBox /></Reveal></div>
       <div style={{ height: 1, background: "linear-gradient(to right,transparent,rgba(255,255,255,0.08),transparent)", margin: "28px 0" }} />
-
-      {/* 8. My Profile */}
       <Reveal delay={0.48}><NavCard item={NAV_BY_ID.profile} color={P.cards[NAV_BY_ID.profile.idx]} navigate={navigate} /></Reveal>
       <div style={{ height: 88 }} />
     </div>
@@ -1355,22 +1458,54 @@ function AIMLPage({ onBack }) {
 }
 
 // ─── CURRENT TOPIC PAGE ───────────────────────────────────────────────────────
-function LectureNote({ videoId, note, onChange, accent, onHoverChange }) {
-  const [hovered, setHovered] = useState(false);
-  const leaveTimer = useRef(null);
-  const setHover = (v) => { setHovered(v); onHoverChange?.(v); };
-  const onEnter = () => { clearTimeout(leaveTimer.current); setHover(true); };
-  const onLeave = () => { leaveTimer.current = setTimeout(() => setHover(false), 200); };
+function LectureNote({ videoId, note, onChange, accent }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const popupRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (
+        popupRef.current && !popupRef.current.contains(e.target) &&
+        btnRef.current && !btnRef.current.contains(e.target)
+      ) setOpen(false);
+    };
+    setTimeout(() => document.addEventListener("mousedown", handler), 0);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const toggle = () => {
+    if (open) { setOpen(false); return; }
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + window.scrollY + 6, left: rect.left });
+    }
+    setOpen(true);
+  };
+
   return (
-    <div onMouseEnter={onEnter} onMouseLeave={onLeave} style={{ position: "relative", zIndex: hovered ? 100 : "auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6, cursor: "pointer" }}>
+    <div style={{ marginTop: 6, position: "relative" }}>
+      <div ref={btnRef} onClick={toggle} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
         <span style={{ fontSize: 10, color: note ? accent : "rgba(255,255,255,0.2)" }}>📝</span>
         <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 9, color: note ? accent : "rgba(255,255,255,0.2)", fontWeight: note ? 600 : 400 }}>{note ? "Note" : "Add note"}</span>
       </div>
-      {hovered && (<div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 999, width: 220, background: "rgba(12,12,18,0.97)", border: `1px solid rgba(255,255,255,0.12)`, borderLeft: `3px solid ${accent}`, borderRadius: 12, padding: "10px 12px", boxShadow: "0 16px 40px rgba(0,0,0,0.7)", backdropFilter: "blur(20px)" }}>
-        <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 10, color: accent, fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Lecture Note</div>
-        <textarea autoFocus value={note} onChange={e => onChange(e.target.value)} placeholder="Write a short note about this lecture…" style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "#FFFFFF", outline: "none", resize: "none", lineHeight: 1.55, minHeight: 70 }} onInput={e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px"; }} />
-      </div>)}
+      {open && ReactDOM.createPortal(
+        <div ref={popupRef} style={{ position: "absolute", top: pos.top, left: pos.left, zIndex: 99999, width: 220, background: "rgba(12,12,18,0.97)", border: `1px solid rgba(255,255,255,0.12)`, borderLeft: `3px solid ${accent}`, borderRadius: 12, padding: "10px 12px", boxShadow: "0 16px 40px rgba(0,0,0,0.7)", backdropFilter: "blur(20px)" }}>
+          <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 10, color: accent, fontWeight: 600, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>Lecture Note</div>
+          <textarea
+            autoFocus
+            value={note}
+            onChange={e => onChange(e.target.value)}
+            placeholder="Write a short note… (Enter to close)"
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); setOpen(false); } }}
+            style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 10px", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "#FFFFFF", outline: "none", resize: "none", lineHeight: 1.55, minHeight: 70, overflow: "hidden" }}
+            onInput={e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px"; }}
+          />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -1378,7 +1513,6 @@ function LectureNote({ videoId, note, onChange, accent, onHoverChange }) {
 function CurrentTopicPage({ onBack }) {
   const [checked, setChecked] = useLocalStorage("dl-videos", {});
   const [lectureNotes, setLectureNotes] = useLocalStorage("lecture-notes", {});
-  const [openNoteId, setOpenNoteId] = useState(null);
   const toggle = (id) => setChecked(p => ({ ...p, [id]: !p[id] }));
   const updateNote = (id, val) => setLectureNotes(p => ({ ...p, [id]: val }));
   const { currentTopic } = CONFIG;
@@ -1396,14 +1530,14 @@ function CurrentTopicPage({ onBack }) {
         <div style={{ height: 7, background: "rgba(255,255,255,0.08)", borderRadius: 6, marginBottom: 30, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: color.accent, borderRadius: 6, transition: "width 0.5s ease" }} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 9 }}>
           {currentTopic.videos.map(v => {
-            const done = checked[v.id], noteOpen = openNoteId === v.id;
+            const done = checked[v.id];
             return (
-              <div key={v.id} style={{ background: done ? `${color.accent}18` : "rgba(255,255,255,0.04)", borderRadius: 11, padding: "11px 13px", border: done ? `1.5px solid ${color.accent}40` : "1px solid rgba(255,255,255,0.06)", transition: "all 0.2s", position: "relative", zIndex: noteOpen ? 50 : 1 }}>
+              <div key={v.id} style={{ background: done ? `${color.accent}18` : "rgba(255,255,255,0.04)", borderRadius: 11, padding: "11px 13px", border: done ? `1.5px solid ${color.accent}40` : "1px solid rgba(255,255,255,0.06)", transition: "all 0.2s" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
                   <div onClick={() => toggle(v.id)} style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0, marginTop: 1, background: done ? color.accent : "transparent", border: `1.5px solid ${done ? color.accent : "rgba(255,255,255,0.2)"}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", cursor: "pointer" }}>{done && <span style={{ color: "#141414", fontSize: 9 }}>✓</span>}</div>
                   <div style={{ flex: 1 }}><div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 10, color: "rgba(245,240,232,0.25)", marginBottom: 2 }}>#{v.id}</div><div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: done ? "rgba(245,240,232,0.3)" : "rgba(245,240,232,0.8)", textDecoration: done ? "line-through" : "none", lineHeight: 1.45 }}>{v.title}</div></div>
                 </div>
-                <LectureNote videoId={v.id} accent={color.accent} note={lectureNotes[v.id] || ""} onChange={val => updateNote(v.id, val)} onHoverChange={isHovering => setOpenNoteId(isHovering ? v.id : null)} />
+                <LectureNote videoId={v.id} accent={color.accent} note={lectureNotes[v.id] || ""} onChange={val => updateNote(v.id, val)} />
               </div>
             );
           })}
