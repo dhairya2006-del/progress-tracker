@@ -484,8 +484,7 @@ function HomeNotifications() {
 //
 // Storage layout:
 //   notebooks-folders       → [ { id, name, color, createdAt } ]
-//   notebooks-files-{fid}   → [ { id, name, createdAt } ]
-//   notebooks-pages-{fileid}→ [ { id, name, createdAt } ]
+//   notebooks-pages-{folderId} → [ { id, name, createdAt } ]
 //   notebooks-content-{pid} → { blocks: [ {type:'text'|'image', content:string, note:string} ] }
 //
 // Images are stored as base64 data URLs inside the blocks array so they persist.
@@ -912,8 +911,9 @@ function TextBlock({ block, folderColor, onUpdate, onImagePaste }) {
 }
 
 // ── Page Editor ───────────────────────────────────────────────────────────────
-function PageEditor({ page, fileId, folderColor, onBack }) {
-  const pagesKey = `notebooks-pages-${fileId}`;
+// ── Page Editor (the actual writing surface — unchanged innards) ──────────────
+function PageEditor({ page, notebookId, notebookName, folderColor, onRenameNotebook, onBack }) {
+  const pagesKey = `notebooks-pages-${notebookId}`;
   const [pages, setPages] = useLocalStorage(pagesKey, []);
   const orderedPages = pages.length ? pages : [page];
 
@@ -925,9 +925,14 @@ function PageEditor({ page, fileId, folderColor, onBack }) {
   return (
     <div style={{ minHeight: "100vh" }}>
       <div style={{ padding: "28px 0 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 32 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to file</button>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to notebooks</button>
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: 36, fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folderColor}`, paddingLeft: 18, lineHeight: 1.1 }}>{page.name}</h1>
+          <RenameableTitle
+            name={notebookName}
+            onRename={onRenameNotebook}
+            accent={folderColor}
+            style={{ fontFamily: "'Poppins',sans-serif", fontSize: 36, fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folderColor}`, paddingLeft: 18, lineHeight: 1.1 }}
+          />
           <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: "4px 12px", marginLeft: "auto" }}>{orderedPages.length} page{orderedPages.length !== 1 ? "s" : ""}</span>
         </div>
         <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 10, paddingLeft: 22 }}>
@@ -950,8 +955,49 @@ function PageEditor({ page, fileId, folderColor, onBack }) {
   );
 }
 
-// ── File view (pages list inside a file) ──────────────────────────────────────
-function FileView({ file, folderId, folderColor, onBack, onOpenPage }) {
+// ── Inline rename control ──────────────────────────────────────────────────────
+function RenameableTitle({ name, onRename, accent, as: Tag = "h1", style = {} }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+  const inputRef = useRef(null);
+
+  useEffect(() => { setDraft(name); }, [name]);
+  useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select(); } }, [editing]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== name) onRename(trimmed);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(name); setEditing(false); } }}
+        style={{ ...style, background: "rgba(255,255,255,0.06)", border: `1.5px solid ${accent}`, outline: "none", borderRadius: 8, padding: "2px 10px" }}
+      />
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <Tag style={style}>{name}</Tag>
+      <button
+        onClick={() => setEditing(true)}
+        title="Rename"
+        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.45)", fontSize: 13, flexShrink: 0, transition: "all 0.2s" }}
+        onMouseEnter={e => { e.currentTarget.style.color = accent; e.currentTarget.style.borderColor = `${accent}66`; }}
+        onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.45)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
+      >✎</button>
+    </div>
+  );
+}
+
+// ── File view (pages list inside a file) ────────────────────────────────────────
+function FileView({ file, folderColor, onRenameFile, onBack, onOpenPage }) {
   const pagesKey = `notebooks-pages-${file.id}`;
   const [pages, setPages] = useLocalStorage(pagesKey, []);
   const [adding, setAdding] = useState(false);
@@ -966,6 +1012,9 @@ function FileView({ file, folderId, folderColor, onBack, onOpenPage }) {
   const deletePage = (id) => {
     setPages(p => p.filter(pg => pg.id !== id));
     try { localStorage.removeItem(`notebooks-content-${id}`); } catch {}
+  };
+  const renamePage = (id, newName) => {
+    setPages(p => p.map(pg => pg.id === id ? { ...pg, name: newName } : pg));
   };
 
   useEffect(() => { if (adding && inputRef.current) inputRef.current.focus(); }, [adding]);
@@ -988,8 +1037,13 @@ function FileView({ file, folderId, folderColor, onBack, onOpenPage }) {
       <div style={{ padding: "28px 0 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 40 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to folder</button>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: `${folderColor}22`, border: `2px solid ${folderColor}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📄</div>
-          <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(28px,3.5vw,46px)", fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folderColor}`, paddingLeft: 18, lineHeight: 1.1 }}>{file.name}</h1>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: `${folderColor}22`, border: `2px solid ${folderColor}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>📄</div>
+          <RenameableTitle
+            name={file.name}
+            onRename={(val) => onRenameFile(file.id, val)}
+            accent={folderColor}
+            style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(28px,3.5vw,46px)", fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folderColor}`, paddingLeft: 18, lineHeight: 1.1 }}
+          />
         </div>
         <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 10, paddingLeft: 66 }}>{pages.length} page{pages.length !== 1 ? "s" : ""}</div>
       </div>
@@ -1002,11 +1056,11 @@ function FileView({ file, folderId, folderColor, onBack, onOpenPage }) {
           const wordCount = getWordCount(pg.id);
           return (
             <Reveal key={pg.id} delay={i * 0.05}>
-              <div style={{ display: "flex", alignItems: "center", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(20px)", border: `1px solid rgba(255,255,255,0.08)`, borderLeft: `4px solid ${folderColor}`, borderRadius: 16, overflow: "hidden", transition: "all 0.3s ease", cursor: "pointer" }}
+              <div style={{ display: "flex", alignItems: "center", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(20px)", border: `1px solid rgba(255,255,255,0.08)`, borderLeft: `4px solid ${folderColor}`, borderRadius: 16, overflow: "hidden", transition: "all 0.3s ease" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(22,22,22,0.95)"; e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.6)`; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(10,10,10,0.85)"; e.currentTarget.style.boxShadow = "none"; }}
               >
-                <div onClick={() => onOpenPage(pg, file.id)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 24px" }}>
+                <div onClick={() => onOpenPage(pg)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 24px", cursor: "pointer" }}>
                   <div style={{ width: 38, height: 46, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, position: "relative", overflow: "hidden", flexShrink: 0 }}>
                     {[0,1,2,3].map(r => <div key={r} style={{ position: "absolute", left: 5, top: 8 + r * 8, right: 5, height: 1, background: "rgba(255,255,255,0.12)" }} />)}
                     <div style={{ position: "absolute", top: 0, right: 0, width: 10, height: 10, background: `${folderColor}44`, clipPath: "polygon(0 0,100% 0,100% 100%)" }} />
@@ -1017,7 +1071,18 @@ function FileView({ file, folderId, folderColor, onBack, onOpenPage }) {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center" }}>
-                  <div onClick={() => onOpenPage(pg, file.id)} style={{ padding: "20px 18px", color: folderColor, fontSize: 18, cursor: "pointer", opacity: 0.7 }}>→</div>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const val = prompt("Rename page", pg.name);
+                      if (val && val.trim()) renamePage(pg.id, val.trim());
+                    }}
+                    title="Rename"
+                    style={{ padding: "20px 14px", color: "rgba(255,255,255,0.3)", fontSize: 15, cursor: "pointer", transition: "color 0.2s" }}
+                    onMouseEnter={e => e.currentTarget.style.color = folderColor}
+                    onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
+                  >✎</div>
+                  <div onClick={() => onOpenPage(pg)} style={{ padding: "20px 18px", color: folderColor, fontSize: 18, cursor: "pointer", opacity: 0.7 }}>→</div>
                   <div onClick={() => deletePage(pg.id)} style={{ padding: "20px 18px", color: "rgba(255,255,255,0.2)", fontSize: 16, cursor: "pointer", transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = "#E8906A"} onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}>🗑</div>
                 </div>
               </div>
@@ -1043,8 +1108,8 @@ function FileView({ file, folderId, folderColor, onBack, onOpenPage }) {
   );
 }
 
-// ── Folder view (files list) ──────────────────────────────────────────────────
-function FolderView({ folder, onBack, onOpenFile }) {
+// ── Folder view (files list inside a folder) ──────────────────────────────────
+function FolderView({ folder, onRenameFolder, onBack, onOpenFile }) {
   const filesKey = `notebooks-files-${folder.id}`;
   const [files, setFiles] = useLocalStorage(filesKey, []);
   const [adding, setAdding] = useState(false);
@@ -1058,7 +1123,6 @@ function FolderView({ folder, onBack, onOpenFile }) {
   };
   const deleteFile = (id) => {
     setFiles(p => p.filter(f => f.id !== id));
-    // Also remove pages under this file
     try {
       const pagesRaw = localStorage.getItem(`notebooks-pages-${id}`);
       if (pagesRaw) {
@@ -1067,6 +1131,9 @@ function FolderView({ folder, onBack, onOpenFile }) {
       }
       localStorage.removeItem(`notebooks-pages-${id}`);
     } catch {}
+  };
+  const renameFile = (id, newName) => {
+    setFiles(p => p.map(f => f.id === id ? { ...f, name: newName } : f));
   };
 
   useEffect(() => { if (adding && inputRef.current) inputRef.current.focus(); }, [adding]);
@@ -1080,8 +1147,13 @@ function FolderView({ folder, onBack, onOpenFile }) {
       <div style={{ padding: "28px 0 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 40 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(245,240,232,0.3)", letterSpacing: "1.5px", textTransform: "uppercase", padding: 0, display: "flex", alignItems: "center", gap: 8, marginBottom: 16, fontWeight: 500 }} onMouseEnter={e => e.currentTarget.style.color = "rgba(245,240,232,0.8)"} onMouseLeave={e => e.currentTarget.style.color = "rgba(245,240,232,0.3)"}>← Back to notebooks</button>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: `${folder.color}22`, border: `2px solid ${folder.color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📁</div>
-          <h1 style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(32px,4vw,52px)", fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folder.color}`, paddingLeft: 18, lineHeight: 1.1 }}>{folder.name}</h1>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: `${folder.color}22`, border: `2px solid ${folder.color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>📁</div>
+          <RenameableTitle
+            name={folder.name}
+            onRename={(val) => onRenameFolder(folder.id, val)}
+            accent={folder.color}
+            style={{ fontFamily: "'Poppins',sans-serif", fontSize: "clamp(32px,4vw,52px)", fontWeight: 600, color: "#F5F0E8", margin: 0, letterSpacing: "-1px", borderLeft: `4px solid ${folder.color}`, paddingLeft: 18, lineHeight: 1.1 }}
+          />
         </div>
         <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 10, paddingLeft: 66 }}>{files.length} file{files.length !== 1 ? "s" : ""}</div>
       </div>
@@ -1094,11 +1166,11 @@ function FolderView({ folder, onBack, onOpenFile }) {
           const pageCount = getPageCount(file.id);
           return (
             <Reveal key={file.id} delay={i * 0.05}>
-              <div style={{ display: "flex", alignItems: "center", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(20px)", border: `1px solid rgba(255,255,255,0.08)`, borderLeft: `4px solid ${folder.color}`, borderRadius: 16, overflow: "hidden", transition: "all 0.3s ease", cursor: "pointer" }}
+              <div style={{ display: "flex", alignItems: "center", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(20px)", border: `1px solid rgba(255,255,255,0.08)`, borderLeft: `4px solid ${folder.color}`, borderRadius: 16, overflow: "hidden", transition: "all 0.3s ease" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(22,22,22,0.95)"; e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.6)`; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(10,10,10,0.85)"; e.currentTarget.style.boxShadow = "none"; }}
               >
-                <div onClick={() => onOpenFile(file)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 24px" }}>
+                <div onClick={() => onOpenFile(file)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 18, padding: "20px 24px", cursor: "pointer" }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, background: `${folder.color}18`, border: `1.5px solid ${folder.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>📄</div>
                   <div>
                     <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 16, fontWeight: 600, color: "#FFFFFF", marginBottom: 4 }}>{file.name}</div>
@@ -1106,6 +1178,17 @@ function FolderView({ folder, onBack, onOpenFile }) {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center" }}>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const val = prompt("Rename file", file.name);
+                      if (val && val.trim()) renameFile(file.id, val.trim());
+                    }}
+                    title="Rename"
+                    style={{ padding: "20px 14px", color: "rgba(255,255,255,0.3)", fontSize: 15, cursor: "pointer", transition: "color 0.2s" }}
+                    onMouseEnter={e => e.currentTarget.style.color = folder.color}
+                    onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.3)"}
+                  >✎</div>
                   <div onClick={() => onOpenFile(file)} style={{ padding: "20px 18px", color: folder.color, fontSize: 18, cursor: "pointer", opacity: 0.7 }}>→</div>
                   <div onClick={() => deleteFile(file.id)} style={{ padding: "20px 18px", color: "rgba(255,255,255,0.2)", fontSize: 16, cursor: "pointer", transition: "color 0.2s" }} onMouseEnter={e => e.currentTarget.style.color = "#E8906A"} onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.2)"}>🗑</div>
                 </div>
@@ -1133,53 +1216,65 @@ function FolderView({ folder, onBack, onOpenFile }) {
 }
 
 // ── Notebooks Page (folder grid) ──────────────────────────────────────────────
+// ── Notebooks Page (grid of notebooks — small, ~1/5 page width, near-square) ──
 function NotebooksPage({ onBack }) {
-  const [folders, setFolders] = useLocalStorage("notebooks-folders", []);
+  const [notebooks, setNotebooks] = useLocalStorage("notebooks-list", []);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [colorIdx, setColorIdx] = useState(0);
-  const [openFolder, setOpenFolder] = useState(null);
-  const [openFile, setOpenFile] = useState(null);
-  const [openPage, setOpenPage] = useState(null);
-  const [openPageFileId, setOpenPageFileId] = useState(null);
+  const [openNotebook, setOpenNotebook] = useState(null);
   const inputRef = useRef(null);
 
-  const addFolder = () => {
+  const addNotebook = () => {
     if (!newName.trim()) return;
-    setFolders(p => [...p, { id: `folder-${Date.now()}`, name: newName.trim(), color: FOLDER_COLORS[colorIdx % FOLDER_COLORS.length], createdAt: Date.now() }]);
+    setNotebooks(p => [...p, { id: `nb-${Date.now()}`, name: newName.trim(), color: FOLDER_COLORS[colorIdx % FOLDER_COLORS.length], createdAt: Date.now() }]);
     setNewName(""); setAdding(false); setColorIdx(c => c + 1);
   };
-  const deleteFolder = (id) => setFolders(p => p.filter(f => f.id !== id));
+  const deleteNotebook = (id) => {
+    setNotebooks(p => p.filter(f => f.id !== id));
+    try {
+      const pagesRaw = localStorage.getItem(`notebooks-pages-${id}`);
+      if (pagesRaw) {
+        const pages = JSON.parse(pagesRaw);
+        pages.forEach(pg => { try { localStorage.removeItem(`notebooks-content-${pg.id}`); } catch {} });
+      }
+      localStorage.removeItem(`notebooks-pages-${id}`);
+    } catch {}
+  };
+  const renameNotebook = (id, newName) => {
+    setNotebooks(p => p.map(f => f.id === id ? { ...f, name: newName } : f));
+  };
   useEffect(() => { if (adding && inputRef.current) inputRef.current.focus(); }, [adding]);
 
-  // Drill-down routing: folder → file → page
-  if (openPage && openFolder) {
+  // Opening a notebook ensures it has at least one page, then jumps straight to the editor
+  const openNotebookDirectly = (nb) => {
+    try {
+      const raw = localStorage.getItem(`notebooks-pages-${nb.id}`);
+      const pages = raw ? JSON.parse(raw) : [];
+      if (!pages.length) {
+        const firstPage = { id: `page-${Date.now()}`, name: "Page 1", createdAt: Date.now() };
+        localStorage.setItem(`notebooks-pages-${nb.id}`, JSON.stringify([firstPage]));
+      }
+    } catch {
+      const firstPage = { id: `page-${Date.now()}`, name: "Page 1", createdAt: Date.now() };
+      localStorage.setItem(`notebooks-pages-${nb.id}`, JSON.stringify([firstPage]));
+    }
+    setOpenNotebook(nb);
+  };
+
+  // Exactly two screens: this grid, and the page editor.
+  if (openNotebook) {
+    let pages = [];
+    try { const raw = localStorage.getItem(`notebooks-pages-${openNotebook.id}`); pages = raw ? JSON.parse(raw) : []; } catch {}
+    const firstPage = pages[0] || { id: `page-${Date.now()}`, name: "Page 1", createdAt: Date.now() };
     return (
       <PageEditor
-        page={openPage}
-        fileId={openPageFileId}
-        folderColor={openFolder.color}
-        onBack={() => { setOpenPage(null); setOpenPageFileId(null); }}
-      />
-    );
-  }
-  if (openFile && openFolder) {
-    return (
-      <FileView
-        file={openFile}
-        folderId={openFolder.id}
-        folderColor={openFolder.color}
-        onBack={() => setOpenFile(null)}
-        onOpenPage={(pg, fileId) => { setOpenPage(pg); setOpenPageFileId(fileId || openFile.id); }}
-      />
-    );
-  }
-  if (openFolder) {
-    return (
-      <FolderView
-        folder={openFolder}
-        onBack={() => setOpenFolder(null)}
-        onOpenFile={(file) => setOpenFile(file)}
+        page={firstPage}
+        notebookId={openNotebook.id}
+        notebookName={openNotebook.name}
+        folderColor={openNotebook.color}
+        onRenameNotebook={(val) => renameNotebook(openNotebook.id, val)}
+        onBack={() => setOpenNotebook(null)}
       />
     );
   }
@@ -1188,39 +1283,49 @@ function NotebooksPage({ onBack }) {
     <div>
       <PageHeader title="Study Notebooks" accent="#5A90AA" onBack={onBack} />
       <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 40, lineHeight: 1.7 }}>
-        Organise your learning. Each folder holds files, each file holds pages, each page is a free-flowing document with images and per-line annotations.
+        Pick a notebook to jump straight into writing — free-flowing pages with images and per-line annotations.
       </div>
 
-      {folders.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 32 }}>
-          {folders.map((folder, i) => {
-            let fileCount = 0;
-            try { const raw = localStorage.getItem(`notebooks-files-${folder.id}`); if (raw) fileCount = JSON.parse(raw).length; } catch {}
+      {notebooks.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 20, marginBottom: 32 }}>
+          {notebooks.map((nb, i) => {
+            let pageCount = 0;
+            try { const raw = localStorage.getItem(`notebooks-pages-${nb.id}`); if (raw) pageCount = JSON.parse(raw).length; } catch {}
             return (
-              <Reveal key={folder.id} delay={i * 0.05}>
+              <Reveal key={nb.id} delay={i * 0.05}>
                 <div style={{ position: "relative" }}>
                   <button
-                    onClick={() => setOpenFolder(folder)}
-                    style={{ width: "100%", aspectRatio: "3/2.2", background: `linear-gradient(135deg, ${folder.color}18 0%, rgba(10,10,10,0.92) 60%)`, border: `1.5px solid ${folder.color}44`, borderTop: `4px solid ${folder.color}`, borderRadius: 18, cursor: "pointer", padding: "22px 20px", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", backdropFilter: "blur(20px)", transition: "all 0.3s ease", boxShadow: `0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 ${folder.color}22`, position: "relative", overflow: "hidden" }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px) scale(1.02)"; e.currentTarget.style.boxShadow = `0 16px 48px rgba(0,0,0,0.7), 0 0 0 1px ${folder.color}55`; e.currentTarget.style.background = `linear-gradient(135deg, ${folder.color}28 0%, rgba(18,18,18,0.96) 60%)`; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = `0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 ${folder.color}22`; e.currentTarget.style.background = `linear-gradient(135deg, ${folder.color}18 0%, rgba(10,10,10,0.92) 60%)`; }}
+                    onClick={() => openNotebookDirectly(nb)}
+                    style={{ width: "100%", aspectRatio: "1 / 1.15", background: `linear-gradient(150deg, ${nb.color}22 0%, rgba(10,10,10,0.94) 65%)`, border: `1.5px solid ${nb.color}44`, borderLeft: `6px solid ${nb.color}`, borderRadius: 12, cursor: "pointer", padding: "18px 16px", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", backdropFilter: "blur(20px)", transition: "all 0.3s ease", boxShadow: `0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 ${nb.color}22`, position: "relative", overflow: "hidden" }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px) scale(1.03)"; e.currentTarget.style.boxShadow = `0 16px 44px rgba(0,0,0,0.7), 0 0 0 1px ${nb.color}55`; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = `0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 ${nb.color}22`; }}
                   >
-                    <div style={{ position: "absolute", top: -4, left: 16, width: 40, height: 8, background: folder.color, borderRadius: "4px 4px 0 0", opacity: 0.7 }} />
-                    <div style={{ position: "absolute", bottom: 28, left: 20, right: 20 }}>
-                      {[0,1,2].map(r => <div key={r} style={{ height: 1.5, background: `${folder.color}18`, borderRadius: 2, marginBottom: r < 2 ? 7 : 0, width: r === 2 ? "55%" : "100%" }} />)}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, zIndex: 1 }}>
-                      <span style={{ fontSize: 22 }}>📁</span>
-                      <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, fontWeight: 700, color: "#FFFFFF", letterSpacing: "-0.2px", lineHeight: 1.3 }}>{folder.name}</span>
-                    </div>
-                    <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: folder.color, fontWeight: 600, background: `${folder.color}18`, border: `1px solid ${folder.color}35`, borderRadius: 8, padding: "3px 10px", zIndex: 1 }}>
-                      {fileCount} file{fileCount !== 1 ? "s" : ""}
+                    <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 6, background: `repeating-linear-gradient(${nb.color}99, ${nb.color}99 4px, transparent 4px, transparent 9px)`, opacity: 0.5 }} />
+                    <div style={{ fontSize: 24, zIndex: 1 }}>📓</div>
+                    <div style={{ zIndex: 1, width: "100%" }}>
+                      <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12.5, fontWeight: 700, color: "#FFFFFF", letterSpacing: "-0.2px", lineHeight: 1.3, marginBottom: 8, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{nb.name}</div>
+                      <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 10, color: nb.color, fontWeight: 600, background: `${nb.color}18`, border: `1px solid ${nb.color}35`, borderRadius: 7, padding: "2px 8px", display: "inline-block" }}>
+                        {pageCount} pg{pageCount !== 1 ? "s" : ""}
+                      </div>
                     </div>
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }} style={{ position: "absolute", top: 10, right: 10, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 12, transition: "all 0.2s", zIndex: 10 }}
-                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,100,74,0.4)"; e.currentTarget.style.color = "#E8906A"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.5)"; e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
-                  >×</button>
+                  <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 5, zIndex: 10 }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const val = prompt("Rename notebook", nb.name);
+                        if (val && val.trim()) renameNotebook(nb.id, val.trim());
+                      }}
+                      title="Rename"
+                      style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 9, transition: "all 0.2s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = `${nb.color}55`; e.currentTarget.style.color = "#FFFFFF"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.5)"; e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
+                    >✎</button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteNotebook(nb.id); }} style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 11, transition: "all 0.2s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(232,100,74,0.4)"; e.currentTarget.style.color = "#E8906A"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.5)"; e.currentTarget.style.color = "rgba(255,255,255,0.3)"; }}
+                    >×</button>
+                  </div>
                 </div>
               </Reveal>
             );
@@ -1228,16 +1333,16 @@ function NotebooksPage({ onBack }) {
         </div>
       )}
 
-      {folders.length === 0 && !adding && (
-        <div style={{ textAlign: "center", padding: "72px 0 48px", fontFamily: "'Poppins',sans-serif", fontSize: 16, color: "rgba(255,255,255,0.22)", fontStyle: "italic" }}>No notebooks yet — create your first folder below</div>
+      {notebooks.length === 0 && !adding && (
+        <div style={{ textAlign: "center", padding: "72px 0 48px", fontFamily: "'Poppins',sans-serif", fontSize: 16, color: "rgba(255,255,255,0.22)", fontStyle: "italic" }}>No notebooks yet — create your first one below</div>
       )}
 
       <div style={{ marginBottom: 48 }}>
         {adding ? (
           <div style={{ background: "rgba(10,10,10,0.88)", backdropFilter: "blur(20px)", border: "1px solid rgba(90,144,170,0.4)", borderTop: "3px solid #5A90AA", borderRadius: 16, padding: "24px 28px" }}>
-            <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.45)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 16 }}>New Folder</div>
+            <div style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, color: "rgba(255,255,255,0.45)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 16 }}>New Notebook</div>
             <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
-              <input ref={inputRef} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addFolder(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="Folder name…" style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "11px 16px", fontFamily: "'Poppins',sans-serif", fontSize: 15, fontWeight: 500, color: "#FFFFFF", outline: "none" }} />
+              <input ref={inputRef} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addNotebook(); if (e.key === "Escape") { setAdding(false); setNewName(""); } }} placeholder="Notebook name (e.g. Topic)…" style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "11px 16px", fontFamily: "'Poppins',sans-serif", fontSize: 15, fontWeight: 500, color: "#FFFFFF", outline: "none" }} />
             </div>
             <div style={{ display: "flex", gap: 10, marginBottom: 18, alignItems: "center" }}>
               <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Color</span>
@@ -1246,7 +1351,7 @@ function NotebooksPage({ onBack }) {
               ))}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={addFolder} style={{ background: FOLDER_COLORS[colorIdx % FOLDER_COLORS.length], border: "none", borderRadius: 10, padding: "10px 24px", fontFamily: "'Poppins',sans-serif", fontSize: 13, fontWeight: 700, color: "#141414", cursor: "pointer" }}>Create Folder</button>
+              <button onClick={addNotebook} style={{ background: FOLDER_COLORS[colorIdx % FOLDER_COLORS.length], border: "none", borderRadius: 10, padding: "10px 24px", fontFamily: "'Poppins',sans-serif", fontSize: 13, fontWeight: 700, color: "#141414", cursor: "pointer" }}>Create Notebook</button>
               <button onClick={() => { setAdding(false); setNewName(""); }} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "10px 18px", fontFamily: "'Poppins',sans-serif", fontSize: 13, color: "rgba(255,255,255,0.5)", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
@@ -1254,7 +1359,7 @@ function NotebooksPage({ onBack }) {
           <button onClick={() => setAdding(true)} style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(10,10,10,0.7)", border: "1.5px dashed rgba(90,144,170,0.35)", borderRadius: 16, padding: "20px 28px", fontFamily: "'Poppins',sans-serif", fontSize: 14, color: "rgba(90,144,170,0.7)", cursor: "pointer", transition: "all 0.25s", fontWeight: 500 }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(90,144,170,0.08)"; e.currentTarget.style.borderColor = "rgba(90,144,170,0.65)"; e.currentTarget.style.color = "#5A90AA"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(10,10,10,0.7)"; e.currentTarget.style.borderColor = "rgba(90,144,170,0.35)"; e.currentTarget.style.color = "rgba(90,144,170,0.7)"; }}
-          ><span style={{ fontSize: 20, lineHeight: 1 }}>＋</span> Add Folder</button>
+          ><span style={{ fontSize: 20, lineHeight: 1 }}>＋</span> New Topic / Notebook</button>
         )}
       </div>
       <div style={{ height: 48 }} />
